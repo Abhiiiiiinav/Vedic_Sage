@@ -1,5 +1,6 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class ApiKeys {
-  // TODO: Replace with your actual Gemini API Key
-  // It is recommended to use environment variables or a secure secrets manager in production.
-  static const String geminiApiKey = 'AIzaSyDOwo62fbzy6Z8E11_-eahoseM5kKwsnLI';
+  /// Gemini API Key — loaded from .env file
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 }

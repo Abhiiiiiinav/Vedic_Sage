@@ -12,6 +12,10 @@ import time
 from datetime import datetime, timedelta
 import hashlib
 import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for Flutter web/mobile
@@ -19,12 +23,14 @@ CORS(app)  # Enable CORS for Flutter web/mobile
 # Free Astrology API Configuration
 BASE_URL = "https://json.freeastrologyapi.com"
 
-# API Keys (rotate if one fails)
+# API Keys loaded from .env (rotate if one fails)
 API_KEYS = [
-    "naU0VsPCyx6YGBaW215Rx3hOhezRGQdg8pjse4A8",  # New key (Primary)
-    "O6sSA5hKu8atz6KDG3xQt1rlTLkUzUhJ6x1wwtLJ",
-    'q4DnQlnPdM2xL4UcfOPuLaRA9JYD3aCE6lSsQGvC'  # Old key (Backup)
+    os.environ.get("ASTRO_API_KEY_1", ""),
+    os.environ.get("ASTRO_API_KEY_2", ""),
+    os.environ.get("ASTRO_API_KEY_3", ""),
 ]
+# Remove empty keys
+API_KEYS = [k for k in API_KEYS if k]
 
 # In-memory cache for charts and planetary data
 # Format: { cache_key: {'svg': str, 'timestamp': datetime, 'chart_name': str} }

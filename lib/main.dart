@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app/app.dart';
 import 'core/database/hive_database_service.dart';
 import 'core/services/user_session.dart';
@@ -7,8 +8,12 @@ import 'core/services/user_session.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // Load environment variables
+  await dotenv.load(fileName: ".env");
+  
   // Initialize Hive database
   await HiveDatabaseService().initialize();
+
   
   // Initialize UserSession (loads saved profile from database)
   await UserSession().initialize();
