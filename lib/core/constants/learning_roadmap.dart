@@ -11,6 +11,7 @@ class LearningRoadmap {
       icon: '🪐',
       orderIndex: 1,
       xpReward: 100,
+      level: 1,
       prerequisites: [],
       lessons: [
         Lesson(
@@ -38,6 +39,7 @@ class LearningRoadmap {
       icon: '☉',
       orderIndex: 2,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
         Lesson(
@@ -65,6 +67,7 @@ class LearningRoadmap {
       icon: '☽',
       orderIndex: 3,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -92,6 +95,7 @@ class LearningRoadmap {
       icon: '♂',
       orderIndex: 4,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -119,6 +123,7 @@ class LearningRoadmap {
       icon: '☿',
       orderIndex: 5,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -146,6 +151,7 @@ class LearningRoadmap {
       icon: '♃',
       orderIndex: 6,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -173,6 +179,7 @@ class LearningRoadmap {
       icon: '♀',
       orderIndex: 7,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -200,6 +207,7 @@ class LearningRoadmap {
       icon: '♄',
       orderIndex: 8,
       xpReward: 150,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -227,6 +235,7 @@ class LearningRoadmap {
       icon: '☊☋',
       orderIndex: 9,
       xpReward: 200,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -256,6 +265,7 @@ class LearningRoadmap {
       icon: '🏠',
       orderIndex: 10,
       xpReward: 100,
+      level: 1,
       prerequisites: ['planets_intro'],
       lessons: [
          Lesson(
@@ -283,6 +293,7 @@ class LearningRoadmap {
       icon: '🏡',
       orderIndex: 11,
       xpReward: 200,
+      level: 1,
       prerequisites: ['houses_intro'],
       lessons: [
          Lesson(
@@ -310,6 +321,7 @@ class LearningRoadmap {
       icon: '🔄',
       orderIndex: 12,
       xpReward: 200,
+      level: 1,
       prerequisites: ['houses_intro'],
       lessons: [
          Lesson(
@@ -337,6 +349,7 @@ class LearningRoadmap {
       icon: '🌟',
       orderIndex: 13,
       xpReward: 200,
+      level: 1,
       prerequisites: ['houses_intro'],
       lessons: [
          Lesson(
@@ -366,6 +379,7 @@ class LearningRoadmap {
       icon: '♈',
       orderIndex: 14,
       xpReward: 100,
+      level: 1,
       prerequisites: ['houses_intro'],
       lessons: [
          Lesson(
@@ -393,6 +407,7 @@ class LearningRoadmap {
       icon: '🔥',
       orderIndex: 15,
       xpReward: 150,
+      level: 1,
       prerequisites: ['signs_intro'],
       lessons: [
          Lesson(
@@ -420,6 +435,7 @@ class LearningRoadmap {
       icon: '🌍',
       orderIndex: 16,
       xpReward: 150,
+      level: 1,
       prerequisites: ['signs_intro'],
       lessons: [
          Lesson(
@@ -447,6 +463,7 @@ class LearningRoadmap {
       icon: '💨',
       orderIndex: 17,
       xpReward: 150,
+      level: 1,
       prerequisites: ['signs_intro'],
       lessons: [
          Lesson(
@@ -474,6 +491,7 @@ class LearningRoadmap {
       icon: '💧',
       orderIndex: 18,
       xpReward: 150,
+      level: 1,
       prerequisites: ['signs_intro'],
       lessons: [
          Lesson(
@@ -503,6 +521,7 @@ class LearningRoadmap {
       icon: '⭐',
       orderIndex: 19,
       xpReward: 150,
+      level: 2,
       prerequisites: ['signs_intro'],
       lessons: [
          Lesson(
@@ -530,6 +549,7 @@ class LearningRoadmap {
       icon: '🌙',
       orderIndex: 20,
       xpReward: 250,
+      level: 2,
       prerequisites: ['nakshatras_intro'],
       lessons: [
          Lesson(
@@ -557,6 +577,7 @@ class LearningRoadmap {
       icon: '✨',
       orderIndex: 21,
       xpReward: 250,
+      level: 2,
       prerequisites: ['nakshatras_intro'],
       lessons: [
          Lesson(
@@ -584,6 +605,7 @@ class LearningRoadmap {
       icon: '🌠',
       orderIndex: 22,
       xpReward: 250,
+      level: 2,
       prerequisites: ['nakshatras_intro'],
       lessons: [
          Lesson(
@@ -613,6 +635,7 @@ class LearningRoadmap {
       icon: '⏳',
       orderIndex: 23,
       xpReward: 150,
+      level: 2,
       prerequisites: ['nakshatras_intro'],
       lessons: [
         Lesson(
@@ -640,6 +663,7 @@ class LearningRoadmap {
       icon: '🔄',
       orderIndex: 24,
       xpReward: 200,
+      level: 2,
       prerequisites: ['dasha_basics'],
       lessons: [
         Lesson(
@@ -667,6 +691,7 @@ class LearningRoadmap {
       icon: '🎯',
       orderIndex: 25,
       xpReward: 250,
+      level: 2,
       prerequisites: ['mahadasha_antardasha'],
       lessons: [
         Lesson(
@@ -696,6 +721,7 @@ class LearningRoadmap {
       icon: '📊',
       orderIndex: 26,
       xpReward: 200,
+      level: 3,
       prerequisites: ['houses_9_to_12', 'signs_intro'],
       lessons: [
          Lesson(
@@ -723,6 +749,7 @@ class LearningRoadmap {
       icon: '🔗',
       orderIndex: 27,
       xpReward: 300,
+      level: 3,
       prerequisites: ['chart_reading_basics'],
       lessons: [
          Lesson(
@@ -750,6 +777,7 @@ class LearningRoadmap {
       icon: '❓',
       orderIndex: 28,
       xpReward: 250,
+      level: 3,
       prerequisites: ['chart_reading_basics'],
       lessons: [
          Lesson(
@@ -777,6 +805,7 @@ class LearningRoadmap {
       icon: '🎯',
       orderIndex: 29,
       xpReward: 200,
+      level: 3,
       prerequisites: ['planet_house_combinations'],
       lessons: [
          Lesson(
@@ -806,6 +835,7 @@ class LearningRoadmap {
       icon: '⚠️',
       orderIndex: 30,
       xpReward: 200,
+      level: 4,
       prerequisites: ['remedies_practical'],
       lessons: [
         Lesson(
@@ -862,6 +892,7 @@ class LearningRoadmap {
       icon: '🏚️',
       orderIndex: 31,
       xpReward: 200,
+      level: 4,
       prerequisites: ['planet_weakness'],
       lessons: [
         Lesson(
@@ -927,6 +958,7 @@ class LearningRoadmap {
       icon: '♈⚠️',
       orderIndex: 32,
       xpReward: 200,
+      level: 4,
       prerequisites: ['house_weakness'],
       lessons: [
         Lesson(
@@ -992,6 +1024,7 @@ class LearningRoadmap {
       icon: '💪',
       orderIndex: 33,
       xpReward: 250,
+      level: 4,
       prerequisites: ['sign_weakness'],
       lessons: [
         Lesson(
@@ -1046,6 +1079,7 @@ FOR SIGNS: Strengthen by expressing the sign's core quality with confidence and 
       icon: '🏆',
       orderIndex: 34,
       xpReward: 500,
+      level: 4,
       prerequisites: ['strengthening_practices'],
       lessons: [
          Lesson(
@@ -1080,6 +1114,30 @@ FOR SIGNS: Strengthen by expressing the sign's core quality with confidence and 
     return chapters.where((c) => c.category == category).toList();
   }
 
+  static List<LearningChapter> getChaptersByLevel(int level) {
+    return chapters.where((c) => c.level == level).toList();
+  }
+
+  static String getLevelName(int level) {
+    switch (level) {
+      case 1: return 'Foundations';
+      case 2: return 'Lunar Science & Timing';
+      case 3: return 'Practitioner';
+      case 4: return 'Expert Track';
+      default: return 'Unknown';
+    }
+  }
+
+  static String getLevelIcon(int level) {
+    switch (level) {
+      case 1: return '🌱';
+      case 2: return '🌙';
+      case 3: return '📊';
+      case 4: return '🏆';
+      default: return '⭐';
+    }
+  }
+
   static List<LearningChapter> getUnlockedChapters(Map<String, ChapterProgress> progress) {
     return chapters.where((chapter) {
       if (chapter.prerequisites.isEmpty) return true;
@@ -1088,6 +1146,99 @@ FOR SIGNS: Strengthen by expressing the sign's core quality with confidence and 
         return prereqProgress != null && prereqProgress.isCompleted;
       });
     }).toList();
+  }
+}
+
+/// Core personality-unlock abilities tied to chapter completions
+class AbilityRegistry {
+  static const List<Ability> coreAbilities = [
+    Ability(
+      id: 'lagna_mirror',
+      title: 'Lagna Mirror',
+      icon: '🪞',
+      description: 'Reveals your core personality, self-image and approach to life.',
+      unlockChapterId: 'houses_intro',
+      personalityReveal: 'Your Ascendant defines how the world first sees you — your body type, temperament, and natural instincts.',
+    ),
+    Ability(
+      id: 'mind_reader',
+      title: 'Mind Reader',
+      icon: '🌙',
+      description: 'Reveals your emotional nature and subconscious patterns.',
+      unlockChapterId: 'nakshatras_19_to_27',
+      personalityReveal: 'Your Moon Nakshatra shapes your deepest emotional responses, dreams, and intuitive patterns.',
+    ),
+    Ability(
+      id: 'life_force',
+      title: 'Life Force Vision',
+      icon: '🔥',
+      description: 'Shows your motivation, vitality and leadership patterns.',
+      unlockChapterId: 'rahu_ketu',
+      personalityReveal: 'Your Sun-Mars-Rahu axis reveals your drive, ambition, and how you assert yourself in the world.',
+    ),
+    Ability(
+      id: 'karma_timeline',
+      title: 'Karma Timeline',
+      icon: '⏳',
+      description: 'Reveals how your personality evolves across Mahadashas.',
+      unlockChapterId: 'dasha_lagna_advanced',
+      personalityReveal: 'Each Mahadasha activates a different dimension of your personality — who you were, who you are, who you\'re becoming.',
+    ),
+    Ability(
+      id: 'public_mask',
+      title: 'Public Mask',
+      icon: '👁️',
+      description: 'Shows how the world perceives you vs your inner self.',
+      unlockChapterId: 'chart_reading_basics',
+      personalityReveal: 'Your Arudha Lagna reveals the gap between who you truly are and the image projected to others.',
+    ),
+    Ability(
+      id: 'relationship_archetype',
+      title: 'Relationship Archetype',
+      icon: '💞',
+      description: 'Reveals your relationship psychology and partnership patterns.',
+      unlockChapterId: 'planet_house_combinations',
+      personalityReveal: 'Your Darakaraka and 7th house dynamics reveal the archetype of partner you attract and your deepest relationship needs.',
+    ),
+    Ability(
+      id: 'life_purpose',
+      title: 'Life Purpose Compass',
+      icon: '🧭',
+      description: 'Reveals your soul\'s direction and fortune path.',
+      unlockChapterId: 'remedies_practical',
+      personalityReveal: 'The 1-5-9 Dharma Trine reveals your soul\'s purpose, past-life merit, and the direction of fortune in this lifetime.',
+    ),
+    Ability(
+      id: 'deep_blueprint',
+      title: 'Deep Personality Blueprint',
+      icon: '🧬',
+      description: 'Reveals subtle personality layers using divisional charts.',
+      unlockChapterId: 'mastery_integration',
+      personalityReveal: 'The D1+D9+D3 synthesis reveals your conscious self, your soul\'s potential, and your hidden creative drives.',
+    ),
+  ];
+
+  /// Get ability by its id
+  static Ability? getAbilityById(String id) {
+    try {
+      return coreAbilities.firstWhere((a) => a.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Get ability that unlocks when a chapter is completed
+  static Ability? getAbilityForChapter(String chapterId) {
+    try {
+      return coreAbilities.firstWhere((a) => a.unlockChapterId == chapterId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Check if a chapter completion unlocks any ability
+  static bool chapterUnlocksAbility(String chapterId) {
+    return coreAbilities.any((a) => a.unlockChapterId == chapterId);
   }
 }
 

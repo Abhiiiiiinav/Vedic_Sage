@@ -243,9 +243,10 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
   
   /// Placeholder when user has no chart data
   Widget _buildNoChartPlaceholder() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -293,6 +294,7 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -1272,7 +1274,7 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
   /// Get Moon sign from chart data
   String _getMoonSign(Map<String, dynamic> chart) {
     try {
-      final planets = chart['planets'] as Map<String, dynamic>?;
+      final planets = chart['planetPositions'] as Map<String, dynamic>?;
       if (planets != null && planets.containsKey('Moon')) {
         final moonData = planets['Moon'] as Map<String, dynamic>?;
         return moonData?['sign'] ?? 'Unknown';
@@ -1296,7 +1298,7 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
   /// Get Sun sign from chart data
   String _getSunSign(Map<String, dynamic> chart) {
     try {
-      final planets = chart['planets'] as Map<String, dynamic>?;
+      final planets = chart['planetPositions'] as Map<String, dynamic>?;
       if (planets != null && planets.containsKey('Sun')) {
         final sunData = planets['Sun'] as Map<String, dynamic>?;
         return sunData?['sign'] ?? 'Unknown';
@@ -1331,17 +1333,13 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
   /// Get user's Moon Nakshatra from chart
   String _getUserNakshatra(Map<String, dynamic> chart) {
     try {
-      final planets = chart['planets'] as Map<String, dynamic>?;
+      final planets = chart['planetPositions'] as Map<String, dynamic>?;
       if (planets != null && planets.containsKey('Moon')) {
         final moonData = planets['Moon'] as Map<String, dynamic>?;
-        return moonData?['nakshatra'] ?? 'Ashwini';
-      }
-      // Fallback: calculate from Moon longitude if available
-      if (planets != null && planets.containsKey('Moon')) {
-        final moonLong = (planets['Moon'] as Map<String, dynamic>?)?['longitude'] as double?;
-        if (moonLong != null) {
-          return _getNakshatraFromLongitude(moonLong);
-        }
+        if (moonData?['nakshatra'] != null) return moonData!['nakshatra'];
+        // Fallback: calculate from Moon longitude
+        final moonLong = moonData?['longitude'] as double?;
+        if (moonLong != null) return _getNakshatraFromLongitude(moonLong);
       }
     } catch (e) {
       print('Error getting user nakshatra: $e');
@@ -1566,6 +1564,32 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
       });
     }
     
+    // Based on today's Nakshatra nature
+    final devaNakshatras = ['Ashwini', 'Mrigashira', 'Punarvasu', 'Pushya', 'Hasta', 'Swati', 'Anuradha', 'Shravana', 'Revati'];
+    final rakshasaNakshatras = ['Krittika', 'Ashlesha', 'Magha', 'Chitra', 'Vishakha', 'Jyeshtha', 'Mula', 'Dhanishta', 'Shatabhisha'];
+    if (devaNakshatras.contains(nakshatra)) {
+      activities.add({
+        'icon': Icons.spa,
+        'label': 'Meditation & spiritual practices ($nakshatra is Deva)',
+        'rating': 'Favorable',
+        'strength': Colors.purple,
+      });
+    } else if (rakshasaNakshatras.contains(nakshatra)) {
+      activities.add({
+        'icon': Icons.shield,
+        'label': 'Strategic work & bold decisions ($nakshatra is Rakshasa)',
+        'rating': 'Powerful',
+        'strength': Colors.deepOrange,
+      });
+    } else {
+      activities.add({
+        'icon': Icons.balance,
+        'label': 'Balanced activities & social events ($nakshatra is Manushya)',
+        'rating': 'Good',
+        'strength': Colors.blue,
+      });
+    }
+    
     // Based on tithi
     final tithiNum = _getTithiNumber(tithi);
     if ([2, 3, 5, 7, 10, 11, 13].contains(tithiNum)) {
@@ -1628,8 +1652,7 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
       return 'Unable to determine today\'s planetary influence on your chart.';
     }
     
-    final ascSign = chart['ascSign'] ?? '';
-    final planets = chart['planets'] as Map<String, dynamic>?;
+    final planets = chart['planetPositions'] as Map<String, dynamic>?;
     
     // Find what houses this planet rules and occupies
     String relevance = 'Today is ruled by $planetName. ';

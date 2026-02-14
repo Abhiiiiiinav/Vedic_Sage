@@ -91,6 +91,10 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
       floating: false,
       pinned: true,
       backgroundColor: Colors.transparent,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,

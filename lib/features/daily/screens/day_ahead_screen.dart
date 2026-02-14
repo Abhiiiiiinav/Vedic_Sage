@@ -19,6 +19,10 @@ class _DayAheadScreenState extends State<DayAheadScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: const Text('Your Day Ahead'),
           actions: [
             IconButton(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AstroTheme {
   // Primary Colors
@@ -53,49 +54,43 @@ class AstroTheme {
     colors: [Color(0xFF00d4ff), Color(0xFF0099cc)],
   );
 
-  // Text Styles
-  static const TextStyle headingLarge = TextStyle(
-    fontFamily: 'Poppins',
+  // Text Styles — Fun fonts via Google Fonts
+  static TextStyle get headingLarge => GoogleFonts.outfit(
     fontSize: 28,
     fontWeight: FontWeight.bold,
     color: Colors.white,
     letterSpacing: -0.5,
   );
   
-  static const TextStyle headingMedium = TextStyle(
-    fontFamily: 'Poppins',
+  static TextStyle get headingMedium => GoogleFonts.outfit(
     fontSize: 22,
     fontWeight: FontWeight.w600,
     color: Colors.white,
   );
   
-  static const TextStyle headingSmall = TextStyle(
-    fontFamily: 'Poppins',
+  static TextStyle get headingSmall => GoogleFonts.outfit(
     fontSize: 18,
     fontWeight: FontWeight.w600,
     color: Colors.white,
   );
   
-  static const TextStyle bodyLarge = TextStyle(
-    fontFamily: 'Inter',
+  static TextStyle get bodyLarge => GoogleFonts.quicksand(
     fontSize: 16,
-    fontWeight: FontWeight.normal,
+    fontWeight: FontWeight.w500,
     color: Colors.white70,
     height: 1.6,
   );
   
-  static const TextStyle bodyMedium = TextStyle(
-    fontFamily: 'Inter',
+  static TextStyle get bodyMedium => GoogleFonts.quicksand(
     fontSize: 14,
-    fontWeight: FontWeight.normal,
+    fontWeight: FontWeight.w500,
     color: Colors.white60,
     height: 1.5,
   );
   
-  static const TextStyle labelText = TextStyle(
-    fontFamily: 'Inter',
+  static TextStyle get labelText => GoogleFonts.quicksand(
     fontSize: 12,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w600,
     color: Colors.white54,
     letterSpacing: 0.5,
   );
@@ -117,12 +112,12 @@ class AstroTheme {
         onSurface: Colors.white,
         onBackground: Colors.white,
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: headingSmall,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: cardBackground,
@@ -131,24 +126,22 @@ class AstroTheme {
           borderRadius: BorderRadius.circular(16),
         ),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surfaceColor,
         selectedItemColor: accentGold,
         unselectedItemColor: Colors.white38,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: TextStyle(
-          fontFamily: 'Inter',
+        selectedLabelStyle: GoogleFonts.quicksand(
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
-        unselectedLabelStyle: TextStyle(
-          fontFamily: 'Inter',
+        unselectedLabelStyle: GoogleFonts.quicksand(
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
       ),
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         headlineLarge: headingLarge,
         headlineMedium: headingMedium,
         headlineSmall: headingSmall,

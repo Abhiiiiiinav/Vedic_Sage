@@ -237,6 +237,13 @@ class _DashaScreenState extends State<DashaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        const SizedBox(height: 8),
         Text(
           '⏳ Your Dasha Timeline',
           style: AstroTheme.headingLarge.copyWith(color: AstroTheme.accentGold),

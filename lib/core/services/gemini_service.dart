@@ -4,7 +4,7 @@ import '../config/api_keys.dart';
 
 /// Service to interact with Google Gemini API for astrological insights
 class GeminiService {
-  static const String _apiKey = ApiKeys.geminiApiKey;
+  static final String _apiKey = ApiKeys.geminiApiKey;
   static const String _baseUrl = 
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 

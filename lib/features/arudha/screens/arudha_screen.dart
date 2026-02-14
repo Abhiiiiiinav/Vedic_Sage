@@ -85,6 +85,16 @@ class _ArudhaScreenState extends State<ArudhaScreen> with SingleTickerProviderSt
       ),
       child: Column(
         children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ),
+          const SizedBox(height: 8),
           const Icon(Icons.visibility, color: AstroTheme.accentCyan, size: 48),
           const SizedBox(height: 12),
           Text('Arudhas: Your Public Image', style: AstroTheme.headingLarge),

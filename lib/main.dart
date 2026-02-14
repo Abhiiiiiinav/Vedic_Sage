@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'app/app.dart';
 import 'core/database/hive_database_service.dart';
 import 'core/services/user_session.dart';
+import 'core/services/gamification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,9 @@ void main() async {
   
   // Initialize UserSession (loads saved profile from database)
   await UserSession().initialize();
+
+  // Initialize Gamification tracking
+  await GamificationService().initialize();
 
   // Set system UI overlay style for immersive experience
   SystemChrome.setSystemUIOverlayStyle(

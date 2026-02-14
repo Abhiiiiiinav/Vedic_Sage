@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
 import '../../../core/data/quiz_data.dart';
 import '../../../core/models/gamification_models.dart';
+import '../../../core/services/gamification_service.dart';
+import '../../../core/constants/learning_roadmap.dart';
 import '../../../shared/widgets/astro_background.dart';
 import '../../../shared/widgets/astro_card.dart';
 
@@ -50,9 +52,55 @@ class _QuizScreenState extends State<QuizScreen> {
         _selectedOptionId = null;
       });
     } else {
-      setState(() {
-        _isCompleted = true;
-      });
+      _completeQuiz();
+    }
+  }
+
+  Future<void> _completeQuiz() async {
+    setState(() {
+      _isCompleted = true;
+    });
+
+    final gamification = GamificationService();
+    final xpEarned = (_score / _quiz!.questions.length * _quiz!.xpReward).round();
+
+    // Award XP
+    await gamification.addXP(xpEarned);
+
+    // Record activity for streak
+    await gamification.recordActivity();
+
+    // Mark lesson as completed
+    await gamification.completeLesson(_quiz!.id);
+
+    // Check if this quiz completion triggers an ability unlock
+    // Find which chapter this quiz belongs to
+    for (final chapter in LearningRoadmap.chapters) {
+      final hasQuiz = chapter.lessons.any(
+        (l) => l.quizId == widget.quizId,
+      );
+      if (hasQuiz) {
+        // Check if all lessons in this chapter are completed
+        final allLessonsDone = chapter.lessons.every(
+          (l) => l.quizId == null || gamification.completedLessons.contains(l.quizId),
+        );
+
+        if (allLessonsDone) {
+          final previousAbilities = List<String>.from(gamification.unlockedAbilities);
+          await gamification.completeChapter(chapter.id);
+          final newAbilities = gamification.unlockedAbilities;
+
+          // Show ability unlock celebration if a new ability was earned
+          final newlyUnlocked = newAbilities.where((a) => !previousAbilities.contains(a)).toList();
+          if (newlyUnlocked.isNotEmpty && mounted) {
+            final ability = AbilityRegistry.getAbilityById(newlyUnlocked.first);
+            if (ability != null) {
+              _showAbilityUnlockCelebration(ability);
+            }
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -60,7 +108,13 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget build(BuildContext context) {
     if (_quiz == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Error')),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('Error'),
+        ),
         body: const Center(child: Text('Quiz not found')),
       );
     }
@@ -69,6 +123,10 @@ class _QuizScreenState extends State<QuizScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
           backgroundColor: Colors.transparent,
           title: Text(_quiz!.title, style: const TextStyle(color: Colors.white)),
           iconTheme: const IconThemeData(color: Colors.white),
@@ -296,8 +354,7 @@ class _QuizScreenState extends State<QuizScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.pop(context); // Go back to chapter details
-                // TODO: Update user progress here
+                Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AstroTheme.accentCyan,
@@ -308,6 +365,97 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAbilityUnlockCelebration(Ability ability) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: AstroTheme.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Celebration icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: AstroTheme.primaryGradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AstroTheme.accentPurple.withOpacity(0.5),
+                      blurRadius: 24,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(ability.icon, style: const TextStyle(fontSize: 40)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '✨ ABILITY UNLOCKED! ✨',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                ability.title,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                ability.description,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AstroTheme.accentPurple.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AstroTheme.accentPurple.withOpacity(0.3)),
+                ),
+                child: Text(
+                  ability.personalityReveal,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AstroTheme.accentCyan,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Amazing!', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

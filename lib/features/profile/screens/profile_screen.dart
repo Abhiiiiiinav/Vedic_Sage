@@ -1,44 +1,43 @@
 import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/level_progress_bar.dart';
+import '../../../shared/widgets/astro_background.dart';
+import '../../../shared/widgets/ability_card.dart';
+import '../../../core/constants/learning_roadmap.dart';
+import '../../../core/models/gamification_models.dart';
+import '../../../core/services/gamification_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Mock user data - would come from a provider/service in real app
-    const userName = 'Vedic Sage';
-    const currentLevel = 5;
-    const currentXP = 650;
-    const xpForNextLevel = 1000;
-    const totalXP = 3650;
-    const completedChapters = 8;
-    const currentStreak = 4;
+    final gamification = GamificationService();
+    final userName = 'Vedic Sage';
+    final currentLevel = gamification.currentLevel;
+    final totalXP = gamification.totalXP;
+    final currentXP = totalXP % ((currentLevel * 100) + 100);
+    final xpForNextLevel = (currentLevel * 100) + 100;
+    final completedChapters = gamification.completedChapterCount;
+    final currentStreak = gamification.currentStreak;
     const badgesEarned = 2;
     const achievementsUnlocked = 3;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AstroTheme.scaffoldBackground,
-              AstroTheme.scaffoldBackground.withOpacity(0.8),
-            ],
-          ),
-        ),
-        child: CustomScrollView(
+    return AstroBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        body: CustomScrollView(
           slivers: [
             // App Bar
             SliverAppBar(
               expandedHeight: 280,
               pinned: true,
               backgroundColor: Colors.transparent,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
               flexibleSpace: FlexibleSpaceBar(
                 background: _buildHeader(
                   userName,
@@ -72,6 +71,27 @@ class ProfileScreen extends StatelessWidget {
                       badgesEarned,
                       achievementsUnlocked,
                     ),
+                    const SizedBox(height: 32),
+                    // Abilities Section
+                    const Text(
+                      'UNLOCKED ABILITIES',
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 13,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Personality insights revealed through learning',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildAbilitiesGrid(),
                     const SizedBox(height: 32),
                     const Text(
                       'LEARNING JOURNEY',
@@ -110,8 +130,8 @@ class ProfileScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AstroTheme.accentPurple.withOpacity(0.3),
-                AstroTheme.accentCyan.withOpacity(0.2),
+                AstroTheme.accentPurple.withValues(alpha: 0.3),
+                AstroTheme.accentCyan.withValues(alpha: 0.2),
               ],
             ),
           ),
@@ -132,7 +152,7 @@ class ProfileScreen extends StatelessWidget {
                       gradient: AstroTheme.primaryGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AstroTheme.accentPurple.withOpacity(0.5),
+                          color: AstroTheme.accentPurple.withValues(alpha: 0.5),
                           blurRadius: 20,
                         ),
                       ],
@@ -182,7 +202,7 @@ class ProfileScreen extends StatelessWidget {
                 Text(
                   '$totalXP Total XP',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 14,
                   ),
                 ),
@@ -251,7 +271,7 @@ class ProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AstroTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -271,7 +291,7 @@ class ProfileScreen extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 12,
             ),
           ),
@@ -286,21 +306,21 @@ class ProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AstroTheme.accentPurple.withOpacity(0.2),
-            AstroTheme.accentCyan.withOpacity(0.1),
+            AstroTheme.accentPurple.withValues(alpha: 0.2),
+            AstroTheme.accentCyan.withValues(alpha: 0.1),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AstroTheme.accentPurple.withOpacity(0.3)),
+        border: Border.all(color: AstroTheme.accentPurple.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.insights, color: AstroTheme.accentCyan, size: 24),
-              const SizedBox(width: 12),
-              const Text(
+              SizedBox(width: 12),
+              Text(
                 'Your Journey',
                 style: TextStyle(
                   color: Colors.white,
@@ -327,7 +347,7 @@ class ProfileScreen extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AstroTheme.accentCyan,
               shape: BoxShape.circle,
             ),
@@ -348,7 +368,7 @@ class ProfileScreen extends StatelessWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 12,
                   ),
                 ),
@@ -359,4 +379,29 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildAbilitiesGrid() {
+    final abilities = AbilityRegistry.coreAbilities;
+    final unlockedIds = GamificationService().unlockedAbilities.toSet();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.1,
+      ),
+      itemCount: abilities.length,
+      itemBuilder: (context, index) {
+        final ability = abilities[index];
+        return AbilityCard(
+          ability: ability,
+          isUnlocked: unlockedIds.contains(ability.id),
+        );
+      },
+    );
+  }
 }
+

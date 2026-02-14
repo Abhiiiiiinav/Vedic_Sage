@@ -9,6 +9,7 @@ class UserProgress {
   final List<String> completedAchievements;
   final DateTime lastActivityDate;
   final int currentStreak;
+  final List<String> unlockedAbilities;
 
   const UserProgress({
     required this.totalXP,
@@ -18,6 +19,7 @@ class UserProgress {
     required this.completedAchievements,
     required this.lastActivityDate,
     required this.currentStreak,
+    this.unlockedAbilities = const [],
   });
 
   int get xpForNextLevel => (currentLevel * 100) + 100;
@@ -31,6 +33,28 @@ class UserProgress {
     }
     return total;
   }
+
+  /// Check if a specific ability is unlocked
+  bool hasAbility(String abilityId) => unlockedAbilities.contains(abilityId);
+}
+
+/// Personality-reveal ability unlocked through learning progress
+class Ability {
+  final String id;
+  final String title;
+  final String icon;
+  final String description;
+  final String unlockChapterId;
+  final String personalityReveal;
+
+  const Ability({
+    required this.id,
+    required this.title,
+    required this.icon,
+    required this.description,
+    required this.unlockChapterId,
+    required this.personalityReveal,
+  });
 }
 
 /// Progress for a specific learning chapter
@@ -67,6 +91,7 @@ class LearningChapter {
   final List<String> prerequisites;
   final List<Lesson> lessons;
   final String category; // 'planets', 'houses', 'signs', 'nakshatras', 'analysis', 'dasha'
+  final int level; // 1=Foundations, 2=Lunar Science & Timing, 3=Practitioner, 4=Expert
 
   const LearningChapter({
     required this.id,
@@ -78,6 +103,7 @@ class LearningChapter {
     required this.prerequisites,
     required this.lessons,
     required this.category,
+    this.level = 1,
   });
 }
 

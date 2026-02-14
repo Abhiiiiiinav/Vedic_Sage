@@ -280,6 +280,13 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
         children: [
           Row(
             children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
