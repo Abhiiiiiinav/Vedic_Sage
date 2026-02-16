@@ -92,8 +92,9 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
       _updateStatus('Computing planetary positions...', 40);
       
       // Step 2: Generate chart using local engine (for Dasha, structure, etc.)
-      final result = AccurateKundaliEngine.generateChart(
-        birthDateTime: birthDateTime,
+      // UPDATED to use new KundaliEngine v3.0 logic
+      final result = KundaliEngine.calculateChart(
+        birthTime: birthDateTime,
         latitude: details.latitude,
         longitude: details.longitude,
         timezoneOffset: details.timezoneOffset,
@@ -137,10 +138,8 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
       // Print validation data
       print('');
       print('🎯 CHART RESULTS (${usingApi ? "API" : "Local Engine"}):');
-      print(AccurateKundaliEngine.getChartSummary(finalResult));
-      if (!usingApi) {
-        ChartValidator.printComparison(finalResult);
-      }
+      // Print chart summary
+      print('Ascendant: ${finalResult.ascendant['signName']} ${finalResult.ascendant['degreeInSign']?.toStringAsFixed(2)}°');
 
       // Small delay for user to see completion
       await Future.delayed(const Duration(milliseconds: 300));

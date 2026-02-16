@@ -63,6 +63,7 @@ Keep it educational, balanced, and actionable. Focus on self-awareness and growt
     required String name,
     required String nakshatra,
     required String nakshatraLord,
+    Map<String, dynamic>? nakshatraSoundAnalysis,
   }) async {
     final prompt = '''
 You are an elite Vedic Astrologer and Namakarana (Name Numerology) master with deep expertise in sound vibration science.
@@ -73,6 +74,9 @@ Key Context:
 - This name vibrates with the $nakshatra Nakshatra
 - Ruled by the planet $nakshatraLord
 - Each sound creates a unique cosmic signature
+
+NAKSHATRA SOUND ANALYSIS (Phonetic Matches):
+${nakshatraSoundAnalysis != null ? jsonEncode(nakshatraSoundAnalysis) : "Not available"}
 
 YOUR TASK:
 Provide a deeply personalized, UNIQUE analysis for "$name" specifically. Do NOT use generic templates.
@@ -173,6 +177,7 @@ GENERATE NOW:
     required String nakshatra,
     required String nakshatraLord,
     required List<String> auspiciousSyllables,
+    Map<String, dynamic>? nakshatraSoundAnalysis,
   }) async {
     final syllableList = auspiciousSyllables.take(8).join(', ');
     
@@ -184,6 +189,9 @@ INPUT:
 - Name to analyze: "$name"
 - Moon Nakshatra: $nakshatra (ruled by $nakshatraLord)
 - Auspicious starting syllables for this Nakshatra: $syllableList
+
+NAKSHATRA SOUND ANALYSIS (Phonetic Matches):
+${nakshatraSoundAnalysis != null ? jsonEncode(nakshatraSoundAnalysis) : "Not available"}
 
 RESPOND IN JSON ONLY (no markdown, no code blocks):
 {
@@ -241,6 +249,7 @@ CRITICAL RULES:
 - All recommended names MUST start with one of: $syllableList
 - Include meaningful names with positive Sanskrit/Indian meanings
 - Auspiciousness score: 0-100 based on how well '$name' matches $nakshatra
+- If Nakshatra Sound Analysis is present, use it to explain specific phonetic influences in 'current_name_alignment' and 'summary'.
 - Keep response focused and valuable
 ''';
 
@@ -267,13 +276,17 @@ CRITICAL RULES:
   Future<String> generateStructuredNameReading(
     Map<String, dynamic> features,
     String nakshatra,
-    String nakshatraLord,
-  ) async {
+    String nakshatraLord, {
+    Map<String, dynamic>? nakshatraSoundAnalysis,
+  }) async {
     final prompt = '''
 You are a Vedic psychology expert and master interpreter.
 
 COMPUTED NAME FEATURES (DO NOT MODIFY):
 ${jsonEncode(features)}
+
+NAKSHATRA SOUND ANALYSIS (Phonetic Matches):
+${nakshatraSoundAnalysis != null ? jsonEncode(nakshatraSoundAnalysis) : "Not available"}
 
 NAKSHATRA CONTEXT:
 - Nakshatra: $nakshatra
@@ -287,11 +300,13 @@ IMPORTANT RULES:
 3. Reference the actual computed values (e.g., "The dominant ${features['dominant_element']} element...")
 4. If "has_foreign_influence" is true → explain modern, unconventional traits
 5. Use vowel/consonant ratio for emotional vs action orientation
+6. If Nakshatra Sound Analysis is present, explain how the name's specific sounds connect to specific Nakshatra energies (even if different from the Moon Nakshatra).
 
 Provide a 3-4 paragraph interpretation covering:
 - Soul essence based on the sound analysis and nakshatra
 - How the dominant element shapes personality
 - Strengths from this phonetic signature
+- Analysis of specific phonetic matches (from Nakshatra Sound Analysis)
 - Growth areas and karmic lessons
 - Relationship with the ruling planet $nakshatraLord
 

@@ -1,13 +1,9 @@
 /// Kundali Engine Orchestrator
-/// Re-exports the AccurateKundaliEngine for backward compatibility
-/// The actual implementation is now in accurate_kundali_engine.dart
+/// Re-exports engines for backward compatibility
 library;
 
-// Re-export everything from the accurate engine
-export 'accurate_kundali_engine.dart';
+// Re-export from legacy engine, hiding the old KundaliEngine wrapper
+export 'accurate_kundali_engine.dart' hide KundaliEngine;
 
-// Legacy compatibility - these are now defined in accurate_kundali_engine.dart
-// KundaliResult - Complete chart result
-// AccurateKundaliEngine - Main engine class
-// VimshottariDasha - Dasha calculator
-// ChartValidator - Validation helper
+// Re-export the new high-precision KundaliEngine (v3.0)
+export 'kundali_engine.dart';

@@ -443,6 +443,7 @@ class _EnhancedNamesScreenState extends State<EnhancedNamesScreen> {
             nakshatra: matchedNakshatra.name,
             nakshatraLord: matchedNakshatra.lord,
             auspiciousSyllables: uniqueSyllables,
+            nakshatraSoundAnalysis: NameAnalysisEngine.analyzeNakshatraSounds(name),
           );
           
           stopwatch.stop();
@@ -513,6 +514,7 @@ class _EnhancedNamesScreenState extends State<EnhancedNamesScreen> {
             name: name,
             nakshatra: matchedNakshatra.name,
             nakshatraLord: matchedNakshatra.lord,
+            nakshatraSoundAnalysis: NameAnalysisEngine.analyzeNakshatraSounds(name),
           );
           
           if (aiData.containsKey('summary')) aiSummary = aiData['summary'];

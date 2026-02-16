@@ -6,6 +6,8 @@ import 'models/hive_models.dart';
 import 'models/hive_adapters.dart';
 import 'models/divisional_chart_model.dart';
 import 'models/divisional_chart_adapter.dart';
+import 'models/kundali_record_model.dart';
+import 'models/kundali_record_adapter.dart';
 
 /// Main database service for Hive operations
 /// Provides a clean API for CRUD operations on all data types
@@ -59,6 +61,9 @@ class HiveDatabaseService {
     if (!Hive.isAdapterRegistered(10)) {
       Hive.registerAdapter(DivisionalChartModelAdapter());
     }
+    if (!Hive.isAdapterRegistered(11)) {
+      Hive.registerAdapter(KundaliRecordModelAdapter());
+    }
   }
 
   /// Open all required boxes
@@ -70,6 +75,7 @@ class HiveDatabaseService {
     await Hive.openBox<AnalysisHistoryModel>(HiveBoxes.analysisHistory);
     await Hive.openBox<QuizProgressModel>(HiveBoxes.quizProgress);
     await Hive.openBox<DivisionalChartModel>('divisional_charts');
+    await Hive.openBox<KundaliRecordModel>(HiveBoxes.kundaliRecords);
   }
 
   // ============================================================
@@ -251,7 +257,7 @@ class HiveDatabaseService {
         .where((c) => c.profileId == profileId)
         .map((c) => c.id)
         .toList();
-    
+
     for (final id in chartsToDelete) {
       await _chartsBox.delete(id);
     }
@@ -279,7 +285,8 @@ class HiveDatabaseService {
     String? ayanamsha,
     String? cacheType,
   }) {
-    final key = '${cacheType ?? "data"}-$year-$month-$date-$hours-$minutes-$latitude-$longitude-$timezone-${ayanamsha ?? "lahiri"}';
+    final key =
+        '${cacheType ?? "data"}-$year-$month-$date-$hours-$minutes-$latitude-$longitude-$timezone-${ayanamsha ?? "lahiri"}';
     return md5.convert(utf8.encode(key)).toString();
   }
 
@@ -549,9 +556,7 @@ class HiveDatabaseService {
 
   /// Get analysis history for a profile
   List<AnalysisHistoryModel> getAnalysisHistoryForProfile(String profileId) {
-    return _historyBox.values
-        .where((a) => a.profileId == profileId)
-        .toList()
+    return _historyBox.values.where((a) => a.profileId == profileId).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
@@ -647,6 +652,100 @@ class HiveDatabaseService {
   }
 
   // ============================================================
+  // KUNDALI RECORD OPERATIONS
+  // ============================================================
+
+  /// Get kundali records box
+  Box<KundaliRecordModel> get _kundaliBox =>
+      Hive.box<KundaliRecordModel>(HiveBoxes.kundaliRecords);
+
+  /// Save a kundali record
+  Future<KundaliRecordModel> saveKundaliRecord(
+      KundaliRecordModel record) async {
+    await _kundaliBox.put(record.id, record);
+    print('📿 Saved kundali record: ${record.name}');
+    return record;
+  }
+
+  /// Create and save a new kundali record
+  Future<KundaliRecordModel> createKundaliRecord({
+    required String name,
+    required DateTime dateOfBirth,
+    required String placeOfBirth,
+    required double latitude,
+    required double longitude,
+    double timezoneOffset = 5.5,
+    required Map<String, int> ascendants,
+    required Map<String, String> planetNakshatras,
+    required Map<String, int> planetNakshatraPadas,
+    required Map<String, String> planetNakshatraLords,
+    required String planetSignsJson,
+    required Map<String, double> planetDegrees,
+    required Map<String, bool> planetRetrogrades,
+    Map<String, String> karakas = const {},
+  }) async {
+    final id = _generateUniqueId();
+    final now = DateTime.now();
+
+    final record = KundaliRecordModel(
+      id: id,
+      name: name,
+      dateOfBirth: dateOfBirth,
+      placeOfBirth: placeOfBirth,
+      latitude: latitude,
+      longitude: longitude,
+      timezoneOffset: timezoneOffset,
+      ascendants: ascendants,
+      planetNakshatras: planetNakshatras,
+      planetNakshatraPadas: planetNakshatraPadas,
+      planetNakshatraLords: planetNakshatraLords,
+      planetSignsJson: planetSignsJson,
+      planetDegrees: planetDegrees,
+      planetRetrogrades: planetRetrogrades,
+      karakas: karakas,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    return saveKundaliRecord(record);
+  }
+
+  /// Get all kundali records
+  List<KundaliRecordModel> getAllKundaliRecords() {
+    return _kundaliBox.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  /// Get a specific kundali record by ID
+  KundaliRecordModel? getKundaliRecord(String id) {
+    return _kundaliBox.get(id);
+  }
+
+  /// Search kundali records by name
+  List<KundaliRecordModel> searchKundaliByName(String query) {
+    final lowerQuery = query.toLowerCase();
+    return _kundaliBox.values
+        .where((r) => r.name.toLowerCase().contains(lowerQuery))
+        .toList();
+  }
+
+  /// Update a kundali record
+  Future<void> updateKundaliRecord(KundaliRecordModel record) async {
+    final updated = record.copyWith();
+    await _kundaliBox.put(record.id, updated);
+    print('📿 Updated kundali record: ${record.name}');
+  }
+
+  /// Delete a kundali record
+  Future<void> deleteKundaliRecord(String id) async {
+    await _kundaliBox.delete(id);
+    print('🗑️ Deleted kundali record: $id');
+  }
+
+  /// Get kundali record count
+  int get kundaliRecordCount => _kundaliBox.length;
+
+  // ============================================================
   // UTILITY METHODS
   // ============================================================
 
@@ -665,6 +764,7 @@ class HiveDatabaseService {
       'cacheEntries': _cacheBox.length,
       'analysisHistory': _historyBox.length,
       'quizProgress': _quizBox.length,
+      'kundaliRecords': _kundaliBox.length,
     };
   }
 
@@ -676,6 +776,7 @@ class HiveDatabaseService {
     await _settingsBox.clear();
     await _historyBox.clear();
     await _quizBox.clear();
+    await _kundaliBox.clear();
     print('🗑️ All database data cleared');
   }
 

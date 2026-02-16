@@ -11,7 +11,8 @@ class ChartApiService {
   static const String _androidEmulatorUrl = 'http://10.0.2.2:5000';
   static const String _localHostUrl = 'http://localhost:5000';
   static const String _webUrl = 'http://127.0.0.1:5000';
-  static const String _physicalDeviceUrl = 'http://10.245.213.212:5000'; // PC's WiFi IP
+  static const String _physicalDeviceUrl =
+      'http://10.245.213.212:5000'; // PC's WiFi IP
 
   final String baseUrl;
   final http.Client _client;
@@ -34,9 +35,11 @@ class ChartApiService {
   /// Check if the backend is running
   Future<bool> healthCheck() async {
     try {
-      final response = await _client.get(
-        Uri.parse('$baseUrl/'),
-      ).timeout(const Duration(seconds: 5));
+      final response = await _client
+          .get(
+            Uri.parse('$baseUrl/'),
+          )
+          .timeout(const Duration(seconds: 5));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -47,7 +50,8 @@ class ChartApiService {
 
   /// Generate D1 Rasi Chart (Birth Chart) SVG using GET endpoint
   /// This is useful for simpler use cases with query parameters
-  Future<ChartResponse> getKundaliChartViaGet(BirthDetails birthDetails, {String division = 'd1'}) async {
+  Future<ChartResponse> getKundaliChartViaGet(BirthDetails birthDetails,
+      {String division = 'd1'}) async {
     try {
       final uri = Uri.parse('$baseUrl/kundali').replace(queryParameters: {
         'year': birthDetails.year.toString(),
@@ -63,7 +67,8 @@ class ChartApiService {
         'division': division,
       });
 
-      final response = await _client.get(uri).timeout(const Duration(seconds: 30));
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -143,21 +148,23 @@ class ChartApiService {
   }) async {
     try {
       print('📡 Fetching batch charts: ${charts.join(", ")}');
-      
-      final response = await _client.post(
-        Uri.parse('$baseUrl/charts/batch'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          ...birthDetails.toJson(),
-          'charts': charts,
-        }),
-      ).timeout(const Duration(seconds: 90));
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/charts/batch'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              ...birthDetails.toJson(),
+              'charts': charts,
+            }),
+          )
+          .timeout(const Duration(seconds: 90));
 
       print('📥 Batch response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Parse charts from response
         Map<String, ChartData> parsedCharts = {};
         if (data['charts'] != null) {
@@ -168,14 +175,14 @@ class ChartApiService {
             );
           });
         }
-        
+
         print('✅ Batch received: ${parsedCharts.length} charts');
-        
+
         return BatchChartResponse(
           success: data['success'] ?? false,
           charts: parsedCharts,
           count: data['count'] ?? 0,
-          errors: data['errors'] != null 
+          errors: data['errors'] != null
               ? Map<String, String>.from(data['errors'])
               : null,
         );
@@ -203,21 +210,23 @@ class ChartApiService {
   ) async {
     try {
       print('📡 Fetching chart from: $baseUrl$endpoint');
-      
-      final response = await _client.post(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(birthDetails.toJson()),
-      ).timeout(const Duration(seconds: 30));
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(birthDetails.toJson()),
+          )
+          .timeout(const Duration(seconds: 30));
 
       print('📥 Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final svgContent = data['svg'] as String?;
-        
+
         print('✅ Chart received: ${svgContent?.length ?? 0} chars');
-        
+
         return ChartResponse(
           success: data['success'] ?? true,
           svg: svgContent,
@@ -242,13 +251,16 @@ class ChartApiService {
   }
 
   /// Fetch details about planetary positions
-  Future<Map<String, dynamic>> getPlanetaryData(BirthDetails birthDetails) async {
+  Future<Map<String, dynamic>> getPlanetaryData(
+      BirthDetails birthDetails) async {
     try {
-      final response = await _client.post(
-        Uri.parse('$baseUrl/planets'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(birthDetails.toJson()),
-      ).timeout(const Duration(seconds: 30));
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/planets'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(birthDetails.toJson()),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -256,17 +268,17 @@ class ChartApiService {
           // Flatten the list of maps [{"0": {...}}, {"1": {...}}] into a single map
           final outputList = data['output'] as List;
           final Map<String, dynamic> planets = {};
-          
+
           for (var item in outputList) {
-             if (item is Map) {
-               item.forEach((key, value) {
-                 if (value is Map && value.containsKey('name')) {
-                   planets[value['name']] = value;
-                 } else if (key == 'ayanamsa') {
-                   planets['ayanamsa'] = value;
-                 }
-               });
-             }
+            if (item is Map) {
+              item.forEach((key, value) {
+                if (value is Map && value.containsKey('name')) {
+                  planets[value['name']] = value;
+                } else if (key == 'ayanamsa') {
+                  planets['ayanamsa'] = value;
+                }
+              });
+            }
           }
           return planets;
         }
@@ -278,12 +290,64 @@ class ChartApiService {
     }
   }
 
+  /// Fetch full kundali data from the /kundali/full endpoint.
+  ///
+  /// Returns SVG + planet positions + degrees + nakshatras for all divisions.
+  Future<Map<String, dynamic>?> fetchFullKundali({
+    required int year,
+    required int month,
+    required int date,
+    required int hours,
+    required int minutes,
+    int seconds = 0,
+    required double latitude,
+    required double longitude,
+    required double timezone,
+    String ayanamsha = 'lahiri',
+    List<String>? divisions,
+  }) async {
+    try {
+      final body = {
+        'year': year,
+        'month': month,
+        'date': date,
+        'hours': hours,
+        'minutes': minutes,
+        'seconds': seconds,
+        'latitude': latitude,
+        'longitude': longitude,
+        'timezone': timezone,
+        'ayanamsha': ayanamsha,
+        if (divisions != null) 'divisions': divisions,
+      };
+
+      final response = await _client.post(
+        Uri.parse('$baseUrl/kundali/full'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          print('✅ Full kundali fetched: ${data['count']} divisions');
+          return data;
+        }
+      }
+
+      print('❌ Full kundali fetch failed: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      print('❌ Error fetching full kundali: $e');
+      return null;
+    }
+  }
+
   /// Dispose of HTTP client
   void dispose() {
     _client.close();
   }
 }
-
 
 /// Birth details model for chart generation
 class BirthDetails {
@@ -314,32 +378,32 @@ class BirthDetails {
   });
 
   Map<String, dynamic> toJson() => {
-    'year': year,
-    'month': month,
-    'date': date,
-    'hours': hours,
-    'minutes': minutes,
-    'seconds': seconds,
-    'latitude': latitude,
-    'longitude': longitude,
-    'timezone': timezone,
-    'observation_point': observationPoint,
-    'ayanamsha': ayanamsha,
-  };
+        'year': year,
+        'month': month,
+        'date': date,
+        'hours': hours,
+        'minutes': minutes,
+        'seconds': seconds,
+        'latitude': latitude,
+        'longitude': longitude,
+        'timezone': timezone,
+        'observation_point': observationPoint,
+        'ayanamsha': ayanamsha,
+      };
 
   factory BirthDetails.fromJson(Map<String, dynamic> json) => BirthDetails(
-    year: json['year'],
-    month: json['month'],
-    date: json['date'],
-    hours: json['hours'],
-    minutes: json['minutes'],
-    seconds: json['seconds'] ?? 0,
-    latitude: (json['latitude'] as num).toDouble(),
-    longitude: (json['longitude'] as num).toDouble(),
-    timezone: (json['timezone'] as num?)?.toDouble() ?? 5.5,
-    observationPoint: json['observation_point'] ?? 'topocentric',
-    ayanamsha: json['ayanamsha'] ?? 'lahiri',
-  );
+        year: json['year'],
+        month: json['month'],
+        date: json['date'],
+        hours: json['hours'],
+        minutes: json['minutes'],
+        seconds: json['seconds'] ?? 0,
+        latitude: (json['latitude'] as num).toDouble(),
+        longitude: (json['longitude'] as num).toDouble(),
+        timezone: (json['timezone'] as num?)?.toDouble() ?? 5.5,
+        observationPoint: json['observation_point'] ?? 'topocentric',
+        ayanamsha: json['ayanamsha'] ?? 'lahiri',
+      );
 
   /// Create from DateTime and location
   factory BirthDetails.fromDateTime({
@@ -364,7 +428,6 @@ class BirthDetails {
   }
 }
 
-
 /// Response model for single chart generation
 class ChartResponse {
   final bool success;
@@ -382,7 +445,6 @@ class ChartResponse {
   });
 }
 
-
 /// Individual chart data
 class ChartData {
   final String svg;
@@ -393,7 +455,6 @@ class ChartData {
     required this.name,
   });
 }
-
 
 /// Response model for batch chart generation
 class BatchChartResponse {
@@ -411,7 +472,6 @@ class BatchChartResponse {
     this.error,
   });
 }
-
 
 /// Enum for available divisional charts
 enum DivisionalChart {

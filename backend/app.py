@@ -8,6 +8,7 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import requests
 import os
+import re
 import time
 from datetime import datetime, timedelta
 import hashlib
@@ -36,7 +37,10 @@ API_KEYS = [k for k in API_KEYS if k]
 # Format: { cache_key: {'svg': str, 'timestamp': datetime, 'chart_name': str} }
 CHART_CACHE = {}
 PLANET_CACHE = {}  # Cache for planetary data
-CACHE_EXPIRY_HOURS = 128  # Cache charts for 24 hours
+CACHE_EXPIRY_HOURS = 128  # Cache charts for 128 hours
+
+# API Base URL
+API_BASE_URL = BASE_URL
 
 
 def generate_chart_id(payload):
@@ -458,9 +462,12 @@ def get_batch_charts():
         else:
             errors[chart_key] = f'Unknown division: {chart_key}'
     
+    # Generate chart_id from birth data
+    batch_chart_id = generate_chart_id(data)
+    
     return jsonify({
         'success': len(results) > 0,
-        'chart_id': chart_id,  # Added for client-side caching
+        'chart_id': batch_chart_id,
         'charts': results,
         'errors': errors if errors else None,
         'count': len(results)
@@ -508,18 +515,280 @@ def get_navamsa_chart():
     return jsonify({'success': False, 'error': result.get('error')}), 500
 
 
+# =============================================================
+# SVG POSITION EXTRACTION - South Indian Style
+# =============================================================
+
+# South Indian chart grid (4x4) - Fixed sign positions
+# Each cell maps to a zodiac sign (1-12), 0 = center (unused)
+SOUTH_SIGN_GRID = [
+    [12, 1, 2, 3],    # Row 0: Pisces, Aries, Taurus, Gemini
+    [11, 0, 0, 4],    # Row 1: Aquarius, center, center, Cancer
+    [10, 0, 0, 5],    # Row 2: Capricorn, center, center, Leo
+    [9, 8, 7, 6],     # Row 3: Sagittarius, Scorpio, Libra, Virgo
+]
+
+SIGN_NAMES = [
+    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+]
+
+VALID_PLANETS = ['Su', 'Mo', 'Ma', 'Me', 'Ju', 'Ve', 'Sa', 'Ra', 'Ke']
+
+# 27 Nakshatras with lords
+NAKSHATRAS = [
+    'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra',
+    'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni',
+    'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
+    'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
+    'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'
+]
+
+NAKSHATRA_LORDS = [
+    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu',
+    'Jupiter', 'Saturn', 'Mercury', 'Ketu', 'Venus', 'Sun',
+    'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury',
+    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu',
+    'Jupiter', 'Saturn', 'Mercury'
+]
+
+
+def extract_positions_from_svg(svg_content):
+    """
+    Extract planet positions and ascendant from South Indian style SVG.
+    
+    Parses <text x="X" y="Y">ABBR</text> elements, maps coordinates
+    to grid cells, then maps cells to zodiac signs.
+    
+    Returns:
+        {
+            'ascendant_sign': int (1-12),
+            'planet_signs': {'Su': 8, 'Mo': 4, ...},
+            'planets_in_houses': {1: ['Su', 'Me'], 2: [], ...}
+        }
+    """
+    if not svg_content or '<svg' not in svg_content:
+        return {'ascendant_sign': 0, 'planet_signs': {}, 'planets_in_houses': {}}
+    
+    # Detect chart dimensions from viewBox or width/height
+    chart_width = 400.0  # Default
+    viewbox_match = re.search(r'viewBox="[\d.]+\s+[\d.]+\s+([\d.]+)\s+[\d.]+"', svg_content)
+    if viewbox_match:
+        chart_width = float(viewbox_match.group(1))
+    else:
+        width_match = re.search(r'width="([\d.]+)"', svg_content)
+        if width_match:
+            chart_width = float(width_match.group(1))
+    
+    cell_size = chart_width / 4.0
+    
+    # Parse text elements
+    text_pattern = re.compile(
+        r'<text[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*>([^<]+)</text>',
+        re.IGNORECASE
+    )
+    
+    ascendant_sign = 0
+    planet_signs = {}
+    
+    for match in text_pattern.finditer(svg_content):
+        x_str, y_str, raw_text = match.group(1), match.group(2), match.group(3)
+        
+        try:
+            x = float(x_str)
+            y = float(y_str)
+        except ValueError:
+            continue
+        
+        # Clean text (remove parentheses, whitespace)
+        text = re.sub(r'[()\s]', '', raw_text).strip()
+        
+        # Map coordinates to grid cell
+        col = min(int(x / cell_size), 3)
+        row = min(int(y / cell_size), 3)
+        col = max(0, col)
+        row = max(0, row)
+        
+        # Get sign from grid
+        sign = SOUTH_SIGN_GRID[row][col]
+        if sign == 0:
+            continue  # Center cells, skip
+        
+        # Check for Ascendant marker
+        if text in ('Asc', 'As', 'Ascendant', 'ASC'):
+            ascendant_sign = sign
+            continue
+        
+        # Check for valid planet
+        if text in VALID_PLANETS:
+            planet_signs[text] = sign
+    
+    # Build house-planet mapping if we have ascendant
+    planets_in_houses = {i: [] for i in range(1, 13)}
+    if ascendant_sign > 0:
+        for planet, sign in planet_signs.items():
+            house = ((sign - ascendant_sign + 12) % 12) + 1
+            planets_in_houses[house].append(planet)
+    
+    return {
+        'ascendant_sign': ascendant_sign,
+        'planet_signs': planet_signs,
+        'planets_in_houses': planets_in_houses,
+    }
+
+
+def calculate_nakshatra(full_degree):
+    """
+    Calculate Nakshatra, Pada, and Lord from full degree (0-360).
+    Each nakshatra spans 13°20' = 13.3333°
+    Each pada spans 3°20' = 3.3333°
+    """
+    degree = full_degree % 360
+    nakshatra_span = 360.0 / 27.0  # 13.3333°
+    pada_span = nakshatra_span / 4.0  # 3.3333°
+    
+    nakshatra_index = int(degree / nakshatra_span)
+    nakshatra_index = min(nakshatra_index, 26)
+    
+    pada = int((degree % nakshatra_span) / pada_span) + 1
+    pada = min(max(pada, 1), 4)
+    
+    return {
+        'nakshatra': NAKSHATRAS[nakshatra_index],
+        'pada': pada,
+        'lord': NAKSHATRA_LORDS[nakshatra_index],
+        'nakshatra_index': nakshatra_index,
+    }
+
+
+# ============== Full Kundali Endpoint ==============
+@app.route('/kundali/full', methods=['POST'])
+def get_full_kundali():
+    """
+    Combined endpoint: returns SVG + extracted positions for all requested divisions.
+    Also fetches D1 planet data (degrees, nakshatras).
+    
+    JSON Body:
+    {
+        "year": 2003, "month": 11, "date": 22,
+        "hours": 13, "minutes": 30, "seconds": 0,
+        "latitude": 14.82, "longitude": 74.1359,
+        "timezone": 5.5,
+        "ayanamsha": "lahiri",
+        "divisions": ["d1", "d9", "d10"]  // optional, defaults to all
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "divisions": {
+            "d1": {"svg": "...", "ascendant_sign": 4, "planet_signs": {...}},
+            "d9": {"svg": "...", "ascendant_sign": 7, "planet_signs": {...}},
+            ...
+        },
+        "d1_planets": {
+            "Sun": {"fullDegree": 216.5, "sign": 8, "nakshatra": "Jyeshtha", ...},
+            ...
+        },
+        "nakshatras": {
+            "Sun": {"nakshatra": "Jyeshtha", "pada": 3, "lord": "Mercury"},
+            ...
+        }
+    }
+    """
+    data = request.get_json() or {}
+    requested_divisions = data.get('divisions', list(CHART_ENDPOINTS.keys()))
+    
+    divisions_result = {}
+    errors = {}
+    
+    # 1. Fetch SVG for each requested division and extract positions
+    for div_key in requested_divisions:
+        div_key = div_key.lower()
+        if div_key not in CHART_ENDPOINTS:
+            errors[div_key] = f'Unknown division: {div_key}'
+            continue
+        
+        endpoint = CHART_ENDPOINTS[div_key]
+        result = fetch_chart_svg(endpoint, data, chart_type=div_key)
+        
+        if result['success']:
+            svg = result['svg']
+            positions = extract_positions_from_svg(svg)
+            
+            divisions_result[div_key] = {
+                'svg': svg,
+                'chart_name': CHART_NAMES.get(div_key, div_key),
+                'ascendant_sign': positions['ascendant_sign'],
+                'ascendant_name': SIGN_NAMES[positions['ascendant_sign'] - 1] if positions['ascendant_sign'] > 0 else 'Unknown',
+                'planet_signs': positions['planet_signs'],
+                'planets_in_houses': {str(k): v for k, v in positions['planets_in_houses'].items()},
+            }
+        else:
+            errors[div_key] = result.get('error', 'Unknown error')
+    
+    # 2. Fetch D1 planet data (degrees, retrograde, etc.) from /planets API
+    d1_planets = {}
+    nakshatras_result = {}
+    
+    planet_result = fetch_planetary_data(data)
+    if planet_result['success']:
+        output = planet_result['output']
+        
+        # Parse the output list [{"0": {...}}, {"1": {...}}, ...]
+        if isinstance(output, list):
+            for item in output:
+                if isinstance(item, dict):
+                    for key, planet_data in item.items():
+                        if isinstance(planet_data, dict) and 'name' in planet_data:
+                            name = planet_data['name']
+                            full_degree = planet_data.get('fullDegree', 0)
+                            
+                            # Calculate nakshatra from degree
+                            nak_data = calculate_nakshatra(full_degree)
+                            
+                            d1_planets[name] = {
+                                'fullDegree': full_degree,
+                                'normDegree': planet_data.get('normDegree', 0),
+                                'sign': planet_data.get('current_sign', 0),
+                                'sign_name': SIGN_NAMES[planet_data.get('current_sign', 1) - 1] if planet_data.get('current_sign', 0) > 0 else 'Unknown',
+                                'house': planet_data.get('house_number', 0),
+                                'isRetro': planet_data.get('isRetro', False),
+                                'nakshatra': nak_data['nakshatra'],
+                                'nakshatra_pada': nak_data['pada'],
+                                'nakshatra_lord': nak_data['lord'],
+                            }
+                            
+                            # Also build separate nakshatras map
+                            if name != 'Ascendant':
+                                nakshatras_result[name] = nak_data
+    
+    chart_id = generate_chart_id(data)
+    
+    return jsonify({
+        'success': len(divisions_result) > 0,
+        'chart_id': chart_id,
+        'divisions': divisions_result,
+        'd1_planets': d1_planets,
+        'nakshatras': nakshatras_result,
+        'errors': errors if errors else None,
+        'count': len(divisions_result),
+    })
+
+
 if __name__ == '__main__':
     print("\n" + "=" * 50)
-    print("   AstroLearn Chart API Server v2.4.0")
-    print("   Using Free Astrology API + Caching + Key Rotation + Planets")
+    print("   AstroLearn Chart API Server v3.0.0")
+    print("   Full Kundali: SVG + Positions + Nakshatras")
     print("=" * 50)
     print("\nEndpoints:")
-    print("  GET  /kundali     - Get chart with query params")
-    print("  POST /chart/d1    - D1 Rasi Chart")
-    print("  POST /chart/d9    - D9 Navamsa Chart")
-    print("  POST /charts/batch - Multiple charts")
-    print("  GET  /rasi        - Quick D1 chart")
-    print("  GET  /navamsa     - Quick D9 chart")
+    print("  GET  /kundali          - Get chart with query params")
+    print("  POST /kundali/full     - Full kundali (all divisions + planets)")
+    print("  POST /chart/<division> - Single divisional chart")
+    print("  POST /charts/batch     - Multiple charts")
+    print("  POST /planets          - D1 planetary data")
+    print("  GET  /rasi             - Quick D1 chart")
+    print("  GET  /navamsa          - Quick D9 chart")
     print(f"\nCaching: {CACHE_EXPIRY_HOURS} hours")
     print("\nStarting server on http://0.0.0.0:5000")
     print("=" * 50 + "\n")

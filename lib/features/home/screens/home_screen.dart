@@ -186,7 +186,9 @@ class HomeScreen extends StatelessWidget {
                 Expanded(
                   child: BentoTile(
                     title: 'My Chart',
-                    subtitle: 'Birth chart & planets',
+                    subtitle: UserSession().hasData 
+                        ? '${UserSession().birthChart?['ascSign'] ?? 'Chart'} Lagna'
+                        : 'Tap to generate',
                     icon: Icons.auto_awesome,
                     accentColor: const Color(0xFF667eea),
                     onTap: () => _push(context, const ChartScreen()),

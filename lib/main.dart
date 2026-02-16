@@ -9,18 +9,17 @@ import 'core/services/gamification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
-  
-  // Initialize Hive database
-  await HiveDatabaseService().initialize();
+  // Phase 1: Load env + initialize database in parallel
+  await Future.wait([
+    dotenv.load(fileName: ".env"),
+    HiveDatabaseService().initialize(),
+  ]);
 
-  
-  // Initialize UserSession (loads saved profile from database)
-  await UserSession().initialize();
-
-  // Initialize Gamification tracking
-  await GamificationService().initialize();
+  // Phase 2: Session + Gamification depend on DB, so run after Phase 1 — but parallel to each other
+  await Future.wait([
+    UserSession().initialize(),
+    GamificationService().initialize(),
+  ]);
 
   // Set system UI overlay style for immersive experience
   SystemChrome.setSystemUIOverlayStyle(

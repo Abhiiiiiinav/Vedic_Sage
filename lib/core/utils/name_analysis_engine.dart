@@ -1,3 +1,5 @@
+import '../data/nakshatra_extended_data.dart';
+
 class NameAnalysisEngine {
   // Vedic-style sound to element mapping (approx)
   static final Map<String, String> _soundElementMap = {
@@ -107,5 +109,96 @@ class NameAnalysisEngine {
     };
 
     return characteristics[element] ?? characteristics['ether']!;
+  }
+
+  /// Advanced analysis of Nakshatra sounds in a name
+  /// 
+  /// Uses extended data to find all phonetic influences, not just the starting letter.
+  /// Returns a breakdown of Nakshatra energies present in the name.
+  static Map<String, dynamic> analyzeNakshatraSounds(String name) {
+    if (name.isEmpty) {
+      return {
+        'name': name,
+        'total_matches': 0,
+        'influences': [],
+        'primary_influence': null,
+        'secondary_influence': null,
+      };
+    }
+
+    final lower = name.toLowerCase().trim();
+    
+    // Normalize foreign sounds for better matching
+    String normalized = lower;
+    normalized = normalized.replaceAll(RegExp(r'^z'), 'j');
+    normalized = normalized.replaceAll(RegExp(r'^x'), 's'); // 'X' often sounds like 'S' or 'Ks'
+    normalized = normalized.replaceAll(RegExp(r'^q'), 'k');
+    normalized = normalized.replaceAll('ph', 'f');
+    
+    normalized = normalized.replaceAll(RegExp(r'[^a-z]'), '');
+    
+    final matches = <Map<String, dynamic>>[];
+    
+    // Check against all Nakshatras
+    for (final nak in NakshatraExtendedData.allNakshatras) {
+      final sounds = List<String>.from(nak['sounds']);
+      final matchedSounds = <String>[];
+      
+      // Check each sound variant
+      for (final sound in sounds) {
+        final lowerSound = sound.toLowerCase();
+       
+        // Simple containment check for now, can be enhanced with regex
+        if (normalized.contains(lowerSound)) {
+           // Avoid matching very short sounds like "a" or "i" if they are part of a longer match?
+           // For now, let's keep it simple and inclusive.
+           if (lowerSound.length > 1 || normalized == lowerSound) {
+             matchedSounds.add(sound);
+           }
+        }
+      }
+      
+      if (matchedSounds.isNotEmpty) {
+        // Calculate a simple score: 
+        // - 10 points for starting with the sound
+        // - 5 points for containing it elsewhere
+        // - Bonus for longer matches (specificity)
+        int score = 0;
+        for (final match in matchedSounds) {
+          int matchScore = 0;
+          if (normalized.startsWith(match.toLowerCase())) {
+            matchScore += 10;
+          } else {
+            matchScore += 5;
+          }
+          
+          // Bonus for length
+          matchScore += (match.length * 2);
+
+          score += matchScore;
+        }
+        
+        matches.add({
+          'id': nak['id'],
+          'name': nak['name'],
+          'ruler': nak['ruler'],
+          'interpretation': nak['interpretation'],
+          'keywords': nak['keywords'],
+          'matched_sounds': matchedSounds,
+          'score': score,
+        });
+      }
+    }
+    
+    // Sort by score descending
+    matches.sort((a, b) => (b['score'] as int).compareTo(a['score'] as int));
+    
+    return {
+      'name': name,
+      'total_matches': matches.length,
+      'influences': matches,
+      'primary_influence': matches.isNotEmpty ? matches.first : null,
+      'secondary_influence': matches.length > 1 ? matches[1] : null,
+    };
   }
 }

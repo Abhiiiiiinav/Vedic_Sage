@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/learning_roadmap.dart';
 import '../../../core/models/gamification_models.dart';
+import '../../../core/services/gamification_service.dart';
 import '../../../shared/widgets/section_card.dart';
 import 'quiz_screen.dart';
 
@@ -120,6 +121,8 @@ borderRadius: BorderRadius.circular(12),
           final index = entry.key;
           final lesson = entry.value;
           final isQuiz = lesson.type == LessonType.quiz;
+          final isCompleted = lesson.quizId != null && 
+              GamificationService().completedLessons.contains(lesson.quizId);
           
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -131,7 +134,10 @@ borderRadius: BorderRadius.circular(12),
                      Navigator.push(
                        context,
                        MaterialPageRoute(builder: (_) => QuizScreen(quizId: lesson.quizId!)),
-                     );
+                     ).then((_) {
+                       // Refresh state when coming back from quiz
+                       (context as Element).markNeedsBuild();
+                     });
                    } else {
                      // Handle other lesson types (currently just placeholder)
                      ScaffoldMessenger.of(context).showSnackBar(
@@ -143,10 +149,14 @@ borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AstroTheme.accentPurple.withOpacity(0.1),
+                    color: isCompleted 
+                        ? AstroTheme.accentPurple.withOpacity(0.05) 
+                        : AstroTheme.accentPurple.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AstroTheme.accentPurple.withOpacity(0.3),
+                      color: isCompleted 
+                          ? AstroTheme.accentGreen.withOpacity(0.5)
+                          : AstroTheme.accentPurple.withOpacity(0.3),
                     ),
                   ),
                   child: Row(
@@ -159,16 +169,18 @@ borderRadius: BorderRadius.circular(12),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
-                          child: isQuiz 
-                              ? const Icon(Icons.quiz, color: Colors.white, size: 20)
-                              : Text(
-                                  '${index + 1}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                          child: isCompleted
+                              ? const Icon(Icons.check, color: Colors.white, size: 24)
+                              : (isQuiz 
+                                  ? const Icon(Icons.quiz, color: Colors.white, size: 20)
+                                  : Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                        color: Colors.white,
+                                      ),
+                                    )),
                         ),
                       ),
                       const SizedBox(width: 16),

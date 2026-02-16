@@ -13,6 +13,7 @@ class AstroTheme {
   static const Color accentCyan = Color(0xFF00d4ff);
   static const Color accentPurple = Color(0xFF7B61FF);
   static const Color accentPink = Color(0xFFff6b9d);
+  static const Color accentGreen = Color(0xFF34c759);
   
   // Planet Colors
   static const Color sunColor = Color(0xFFff9500);

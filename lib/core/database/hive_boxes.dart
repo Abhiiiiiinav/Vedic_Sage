@@ -9,7 +9,8 @@ class HiveBoxes {
   static const String favoriteNakshatras = 'favorite_nakshatras';
   static const String analysisHistory = 'analysis_history';
   static const String quizProgress = 'quiz_progress';
-  
+  static const String kundaliRecords = 'kundali_records';
+
   // Private constructor to prevent instantiation
   HiveBoxes._();
 }
@@ -24,7 +25,8 @@ class HiveTypeIds {
   static const int appSettingsModel = 4;
   static const int analysisHistoryModel = 5;
   static const int quizProgressModel = 6;
-  
+  static const int kundaliRecordModel = 11;
+
   // Private constructor to prevent instantiation
   HiveTypeIds._();
 }
