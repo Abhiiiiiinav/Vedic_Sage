@@ -5,6 +5,7 @@ import '../../../core/services/user_session.dart';
 import '../../../core/models/birth_details.dart';
 import '../../../core/astro/kundali_orchestrator.dart';
 import '../../../core/services/chart_api_service.dart' as api;
+import '../../../core/services/svg_chart_parser.dart';
 
 /// Intermediate loading screen that navigates immediately
 /// and loads chart data in background - creates instant feel
@@ -51,12 +52,12 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
   Future<void> _loadChartData() async {
     final details = widget.birthDetails;
     final birthDateTime = details.birthDateTime;
+    final chartApiService = api.ChartApiService();
 
     try {
       // Step 1: Try Flask API first for accurate positions
       _updateStatus('Connecting to astrology server...', 10);
       
-      final chartApiService = api.ChartApiService();
       final apiDetails = api.BirthDetails(
         year: birthDateTime.year,
         month: birthDateTime.month,
@@ -73,6 +74,8 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
       final isApiAvailable = await chartApiService.healthCheck();
       
       Map<String, dynamic>? apiPlanetData;
+      Map<String, String> divisionalSvgs = {};
+      Map<String, dynamic> divisionalExtracted = {};
       bool usingApi = false;
       
       if (isApiAvailable) {
@@ -86,6 +89,27 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
           }
         } catch (e) {
           print('⚠️ API fetch failed, falling back to local engine: $e');
+        }
+
+        _updateStatus('Fetching divisional SVG charts...', 35);
+        try {
+          final divisionalResponse = await chartApiService.getMultipleCharts(
+            apiDetails,
+            charts: const ['d1', 'd3', 'd7', 'd9', 'd10', 'd12', 'd16'],
+          );
+
+          if (divisionalResponse.success && divisionalResponse.charts != null) {
+            divisionalSvgs = divisionalResponse.charts!.map(
+              (key, value) => MapEntry(key.toLowerCase(), value.svg),
+            );
+            final extracted = SvgChartParser.extractAllDivisions(divisionalSvgs);
+            divisionalExtracted = extracted.map(
+              (key, value) => MapEntry(key, value.toJson()),
+            );
+            print('✅ Prefetched divisional charts: ${divisionalSvgs.keys.join(", ")}');
+          }
+        } catch (e) {
+          print('⚠️ Divisional SVG prefetch failed: $e');
         }
       }
 
@@ -123,6 +147,12 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
       if (apiPlanetData != null) {
         chartData['apiPlanets'] = apiPlanetData;
       }
+      if (divisionalSvgs.isNotEmpty) {
+        chartData['divisionalSvgs'] = divisionalSvgs;
+      }
+      if (divisionalExtracted.isNotEmpty) {
+        chartData['divisionalExtracted'] = divisionalExtracted;
+      }
 
       // Step 5: Save to session and database
       _updateStatus('Saving to session...', 95);
@@ -159,6 +189,8 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
         _hasError = true;
         _errorMessage = e.toString();
       });
+    } finally {
+      chartApiService.dispose();
     }
   }
   

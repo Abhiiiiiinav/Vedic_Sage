@@ -148,7 +148,7 @@ class SavedChartModelAdapter extends TypeAdapter<SavedChartModel> {
       chartSvg: fields[11] as String?,
       createdAt: fields[12] as DateTime,
       updatedAt: fields[13] as DateTime,
-      rawApiResponse: fields[14] as Map<String, dynamic>?,
+      rawApiResponse: (fields[14] as Map?)?.cast<String, dynamic>(),
     );
   }
 

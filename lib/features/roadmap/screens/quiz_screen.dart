@@ -62,7 +62,9 @@ class _QuizScreenState extends State<QuizScreen> {
     });
 
     final gamification = GamificationService();
-    final xpEarned = (_score / _quiz!.questions.length * _quiz!.xpReward).round();
+    await gamification.initialize();
+    final xpEarned =
+        (_score / _quiz!.questions.length * _quiz!.xpReward).round();
 
     // Award XP
     await gamification.addXP(xpEarned);
@@ -71,7 +73,7 @@ class _QuizScreenState extends State<QuizScreen> {
     await gamification.recordActivity();
 
     // Mark lesson as completed
-    await gamification.completeLesson(_quiz!.id);
+    await gamification.completeLesson(widget.quizId);
 
     // Check if this quiz completion triggers an ability unlock
     // Find which chapter this quiz belongs to
@@ -82,16 +84,19 @@ class _QuizScreenState extends State<QuizScreen> {
       if (hasQuiz) {
         // Check if all lessons in this chapter are completed
         final allLessonsDone = chapter.lessons.every(
-          (l) => l.quizId == null || gamification.completedLessons.contains(l.quizId),
+          (l) => gamification.completedLessons.contains(_lessonProgressKey(l)),
         );
 
         if (allLessonsDone) {
-          final previousAbilities = List<String>.from(gamification.unlockedAbilities);
+          final previousAbilities =
+              List<String>.from(gamification.unlockedAbilities);
           await gamification.completeChapter(chapter.id);
           final newAbilities = gamification.unlockedAbilities;
 
           // Show ability unlock celebration if a new ability was earned
-          final newlyUnlocked = newAbilities.where((a) => !previousAbilities.contains(a)).toList();
+          final newlyUnlocked = newAbilities
+              .where((a) => !previousAbilities.contains(a))
+              .toList();
           if (newlyUnlocked.isNotEmpty && mounted) {
             final ability = AbilityRegistry.getAbilityById(newlyUnlocked.first);
             if (ability != null) {
@@ -103,6 +108,8 @@ class _QuizScreenState extends State<QuizScreen> {
       }
     }
   }
+
+  String _lessonProgressKey(Lesson lesson) => lesson.quizId ?? lesson.id;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +135,8 @@ class _QuizScreenState extends State<QuizScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           backgroundColor: Colors.transparent,
-          title: Text(_quiz!.title, style: const TextStyle(color: Colors.white)),
+          title:
+              Text(_quiz!.title, style: const TextStyle(color: Colors.white)),
           iconTheme: const IconThemeData(color: Colors.white),
         ),
         body: _isCompleted ? _buildCompletionScreen() : _buildQuizContent(),
@@ -162,9 +170,9 @@ class _QuizScreenState extends State<QuizScreen> {
             style: const TextStyle(color: Colors.white70),
             textAlign: TextAlign.right,
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Question Card
           Container(
             padding: const EdgeInsets.all(24),
@@ -184,56 +192,71 @@ class _QuizScreenState extends State<QuizScreen> {
               textAlign: TextAlign.center,
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Options
-          ...question.options.map((option) => _buildOptionCard(option)).toList(),
-          
+          ...question.options
+              .map((option) => _buildOptionCard(option))
+              .toList(),
+
           const SizedBox(height: 24),
-          
+
           // Explanation & Next Button
           if (_showExplanation) ...[
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _selectedOptionId == null 
-                  ? Colors.transparent 
-                  : (question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                      ? Colors.green.withOpacity(0.1) 
-                      : Colors.red.withOpacity(0.1)),
+                color: _selectedOptionId == null
+                    ? Colors.transparent
+                    : (question.options
+                            .firstWhere((o) => o.id == _selectedOptionId)
+                            .isCorrect
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.red.withOpacity(0.1)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _selectedOptionId == null 
-                  ? Colors.transparent 
-                  : (question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                      ? Colors.green 
-                      : Colors.red),
+                  color: _selectedOptionId == null
+                      ? Colors.transparent
+                      : (question.options
+                              .firstWhere((o) => o.id == _selectedOptionId)
+                              .isCorrect
+                          ? Colors.green
+                          : Colors.red),
                 ),
               ),
               child: Column(
                 children: [
-                   Row(
+                  Row(
                     children: [
                       Icon(
-                        question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                            ? Icons.check_circle 
+                        question.options
+                                .firstWhere((o) => o.id == _selectedOptionId)
+                                .isCorrect
+                            ? Icons.check_circle
                             : Icons.cancel,
-                        color: question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                            ? Colors.green 
+                        color: question.options
+                                .firstWhere((o) => o.id == _selectedOptionId)
+                                .isCorrect
+                            ? Colors.green
                             : Colors.red,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                              ? 'Correct!' 
+                          question.options
+                                  .firstWhere((o) => o.id == _selectedOptionId)
+                                  .isCorrect
+                              ? 'Correct!'
                               : 'Incorrect',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: question.options.firstWhere((o) => o.id == _selectedOptionId).isCorrect 
-                            ? Colors.green 
-                            : Colors.red,
+                            color: question.options
+                                    .firstWhere(
+                                        (o) => o.id == _selectedOptionId)
+                                    .isCorrect
+                                ? Colors.green
+                                : Colors.red,
                           ),
                         ),
                       ),
@@ -254,11 +277,15 @@ class _QuizScreenState extends State<QuizScreen> {
                 backgroundColor: AstroTheme.accentCyan,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(
-                _currentQuestionIndex < totalQuestions - 1 ? 'Next Question' : 'Finish Quiz',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                _currentQuestionIndex < totalQuestions - 1
+                    ? 'Next Question'
+                    : 'Finish Quiz',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ],
@@ -270,7 +297,7 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildOptionCard(QuizOption option) {
     final isSelected = _selectedOptionId == option.id;
     final isShowAnswer = _showExplanation;
-    
+
     Color borderColor = Colors.white10;
     Color backgroundColor = Colors.white.withOpacity(0.05);
     IconData? icon;
@@ -303,7 +330,10 @@ class _QuizScreenState extends State<QuizScreen> {
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: isSelected || (isShowAnswer && option.isCorrect) ? 2 : 1),
+            border: Border.all(
+                color: borderColor,
+                width:
+                    isSelected || (isShowAnswer && option.isCorrect) ? 2 : 1),
           ),
           child: Row(
             children: [
@@ -330,7 +360,7 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget _buildCompletionScreen() {
     final totalQuestions = _quiz!.questions.length;
     final percentage = _score / totalQuestions;
-    
+
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -340,12 +370,17 @@ class _QuizScreenState extends State<QuizScreen> {
           const SizedBox(height: 20),
           const Text(
             'Quiz Completed!',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+                fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
             'You scored $_score out of $totalQuestions',
-            style: TextStyle(fontSize: 18, color: percentage >= 0.7 ? Colors.greenAccent : Colors.orangeAccent),
+            style: TextStyle(
+                fontSize: 18,
+                color: percentage >= 0.7
+                    ? Colors.greenAccent
+                    : Colors.orangeAccent),
           ),
           const SizedBox(height: 40),
           _buildScoreCard(),
@@ -359,9 +394,12 @@ class _QuizScreenState extends State<QuizScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AstroTheme.accentCyan,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Continue Learning', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text('Continue Learning',
+                  style: TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -397,7 +435,8 @@ class _QuizScreenState extends State<QuizScreen> {
                   ],
                 ),
                 child: Center(
-                  child: Text(ability.icon, style: const TextStyle(fontSize: 40)),
+                  child:
+                      Text(ability.icon, style: const TextStyle(fontSize: 40)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -432,11 +471,13 @@ class _QuizScreenState extends State<QuizScreen> {
                 decoration: BoxDecoration(
                   color: AstroTheme.accentPurple.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AstroTheme.accentPurple.withOpacity(0.3)),
+                  border: Border.all(
+                      color: AstroTheme.accentPurple.withOpacity(0.3)),
                 ),
                 child: Text(
                   ability.personalityReveal,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.5),
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 13, height: 1.5),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -448,9 +489,14 @@ class _QuizScreenState extends State<QuizScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AstroTheme.accentCyan,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Amazing!', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Text('Amazing!',
+                      style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
                 ),
               ),
             ],
@@ -459,7 +505,7 @@ class _QuizScreenState extends State<QuizScreen> {
       ),
     );
   }
-  
+
   Widget _buildScoreCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -474,7 +520,8 @@ class _QuizScreenState extends State<QuizScreen> {
           const SizedBox(height: 8),
           Text(
             "+${(_score / _quiz!.questions.length * _quiz!.xpReward).round()}",
-             style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.amber),
+            style: const TextStyle(
+                fontSize: 32, fontWeight: FontWeight.bold, color: Colors.amber),
           ),
         ],
       ),

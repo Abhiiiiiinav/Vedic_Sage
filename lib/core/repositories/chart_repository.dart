@@ -1,19 +1,20 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../database/models/divisional_chart_model.dart';
-import 'chart_id_generator.dart';
-import 'chart_api_service.dart';
-import 'chart_storage_service.dart';
-import 'svg_chart_parser.dart';
+import '../services/chart_id_generator.dart';
+import '../services/chart_api_service.dart';
+import '../services/chart_storage_service.dart';
+import '../services/svg_chart_parser.dart';
+// BirthDetails and ChartResponse are imported from chart_api_service.dart above
 
 /// Chart Repository
 /// Implements cache-first strategy to prevent duplicate API calls
-/// 
+///
 /// Flow:
 /// 1. Generate chart_id from birth details
 /// 2. Check Hive cache
 /// 3. If cached → return immediately
 /// 4. If not cached → fetch from API → store → return
-/// 
+///
 /// Guarantees:
 /// ✅ No duplicate API calls for same birth details
 /// ✅ Works offline after first fetch
@@ -30,7 +31,7 @@ class ChartRepository {
         _api = api ?? ChartApiService();
 
   /// Get or create a single divisional chart
-  /// 
+  ///
   /// Cache-first strategy:
   /// 1. Generate chart_id
   /// 2. Check cache
@@ -46,7 +47,8 @@ class ChartRepository {
     // Check cache first
     final cached = _storage.getChartByType(profileId, division);
     if (cached != null && _isValidCache(cached)) {
-      print(' Cache hit for $division (ID: ${ChartIdGenerator.shortId(chartId)})');
+      print(
+          ' Cache hit for $division (ID: ${ChartIdGenerator.shortId(chartId)})');
       return cached;
     }
 
@@ -64,7 +66,7 @@ class ChartRepository {
   }
 
   /// Get or create multiple divisional charts (batch)
-  /// 
+  ///
   /// Optimized batch fetching:
   /// 1. Check which charts are cached
   /// 2. Fetch only missing charts from API
@@ -92,7 +94,7 @@ class ChartRepository {
     // Fetch missing charts
     if (missingDivisions.isNotEmpty) {
       print('📡 Fetching ${missingDivisions.length} charts from API...');
-      
+
       final newCharts = await _fetchBatchAndStore(
         birthDetails: birthDetails,
         profileId: profileId,
@@ -102,7 +104,8 @@ class ChartRepository {
       results.addAll(newCharts);
     }
 
-    print('✅ Loaded ${results.length} charts (${results.length - missingDivisions.length} cached, ${missingDivisions.length} fetched)');
+    print(
+        '✅ Loaded ${results.length} charts (${results.length - missingDivisions.length} cached, ${missingDivisions.length} fetched)');
     return results;
   }
 
@@ -112,8 +115,22 @@ class ChartRepository {
     required String profileId,
   }) async {
     const allDivisions = [
-      'd1', 'd2', 'd3', 'd4', 'd7', 'd9', 'd10', 'd12',
-      'd16', 'd20', 'd24', 'd27', 'd30', 'd40', 'd45', 'd60',
+      'd1',
+      'd2',
+      'd3',
+      'd4',
+      'd7',
+      'd9',
+      'd10',
+      'd12',
+      'd16',
+      'd20',
+      'd24',
+      'd27',
+      'd30',
+      'd40',
+      'd45',
+      'd60',
     ];
 
     return await getOrCreateBatchCharts(
@@ -144,9 +161,9 @@ class ChartRepository {
     required String division,
   }) async {
     final chartId = ChartIdGenerator.forDivision(birthDetails, division);
-    
+
     print('🔄 Force refreshing $division...');
-    
+
     return await _fetchAndStore(
       birthDetails: birthDetails,
       profileId: profileId,
@@ -193,10 +210,12 @@ class ChartRepository {
     required String chartId,
   }) async {
     try {
-      // Fetch from API
+      // Fetch from API — getChartByDivision(BirthDetails, int)
+      final divisionInt =
+          int.tryParse(division.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
       final response = await _api.getChartByDivision(
-        'chart/$division',
         _convertToApiFormat(birthDetails),
+        divisionInt,
       );
 
       if (!response.success || response.svg == null) {
@@ -215,7 +234,7 @@ class ChartRepository {
         metadata: {
           'chartId': chartId,
           'fetchedAt': DateTime.now().toIso8601String(),
-          'apiResponse': response.toJson(),
+          'chartType': response.chartType ?? division,
         },
       );
 
@@ -239,22 +258,30 @@ class ChartRepository {
     required List<String> divisions,
   }) async {
     try {
-      // Fetch batch from API
-      final response = await _api.getBatchCharts(
+      // Fetch batch from API — getMultipleCharts is the correct method name
+      final response = await _api.getMultipleCharts(
         _convertToApiFormat(birthDetails),
-        divisions,
+        charts: divisions,
       );
 
       if (!response.success) {
         throw Exception('Batch fetch failed: ${response.error}');
       }
 
-      // Extract ascendant
-      final ascendantSign = _extractAscendantSign(response);
+      // Extract ascendant (default 1 — Aries — when not in response)
+      const ascendantSign = 1;
+
+      // Convert ChartData map to SVG string map for storage
+      final chartSvgs = <String, String>{};
+      if (response.charts != null) {
+        response.charts!.forEach((key, chartData) {
+          chartSvgs[key] = chartData.svg;
+        });
+      }
 
       // Store all charts
       await _storage.saveBatchCharts(
-        chartSvgs: response.charts,
+        chartSvgs: chartSvgs,
         ascendantSign: ascendantSign,
         profileId: profileId,
       );
@@ -292,13 +319,8 @@ class ChartRepository {
 
   /// Extract ascendant sign from API response
   int _extractAscendantSign(ChartResponse response) {
-    // Try to get from metadata
-    if (response.metadata?['ascendantSign'] != null) {
-      return response.metadata!['ascendantSign'] as int;
-    }
-
-    // Default to Aries if not available
-    // TODO: Parse from SVG or planetary data
+    // ChartResponse has no metadata field — default to Aries (1)
+    // TODO: Parse from SVG or planetary data when available
     return 1;
   }
 
@@ -318,44 +340,5 @@ class ChartRepository {
     }
 
     return true;
-  }
-}
-
-/// Birth Details Helper Class
-class BirthDetails {
-  final int year;
-  final int month;
-  final int date;
-  final int hours;
-  final int minutes;
-  final int seconds;
-  final double latitude;
-  final double longitude;
-  final double timezone;
-
-  BirthDetails({
-    required this.year,
-    required this.month,
-    required this.date,
-    required this.hours,
-    required this.minutes,
-    this.seconds = 0,
-    required this.latitude,
-    required this.longitude,
-    required this.timezone,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'year': year,
-      'month': month,
-      'date': date,
-      'hours': hours,
-      'minutes': minutes,
-      'seconds': seconds,
-      'latitude': latitude,
-      'longitude': longitude,
-      'timezone': timezone,
-    };
   }
 }

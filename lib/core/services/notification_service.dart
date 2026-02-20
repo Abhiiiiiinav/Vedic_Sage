@@ -1,14 +1,77 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'local_notification_service.dart';
+
+/// Model for an in-app notification
+class AppNotification {
+  final String id;
+  final String title;
+  final String message;
+  final int iconCodePoint;
+  final String? iconFontFamily;
+  final int colorValue;
+  final DateTime timestamp;
+  final String type; // streak, learning, cosmic, social
+  bool isRead;
+
+  AppNotification({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.iconCodePoint,
+    this.iconFontFamily,
+    required this.colorValue,
+    required this.timestamp,
+    required this.type,
+    this.isRead = false,
+  });
+
+  IconData get icon => IconData(iconCodePoint, fontFamily: iconFontFamily);
+  Color get color => Color(colorValue);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'message': message,
+        'iconCodePoint': iconCodePoint,
+        'iconFontFamily': iconFontFamily,
+        'colorValue': colorValue,
+        'timestamp': timestamp.millisecondsSinceEpoch,
+        'type': type,
+        'isRead': isRead,
+      };
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        message: json['message'] as String,
+        iconCodePoint: json['iconCodePoint'] as int,
+        iconFontFamily: json['iconFontFamily'] as String?,
+        colorValue: json['colorValue'] as int,
+        timestamp:
+            DateTime.fromMillisecondsSinceEpoch(json['timestamp'] as int),
+        type: json['type'] as String,
+        isRead: json['isRead'] as bool? ?? false,
+      );
+}
 
 /// Duolingo-style notification & engagement service.
 /// Manages in-app engagement nudges, streak protection, ability tease,
-/// and comeback hooks without requiring a backend.
+/// comeback hooks, and notification history.
 class NotificationService {
   // Singleton
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
   NotificationService._();
+
+  SharedPreferences? _prefs;
+  List<AppNotification> _notifications = [];
+
+  static const _keyNotifications = 'notification_history_json';
+  static const _maxNotifications = 20;
 
   // ─── Notification Message Templates ───
 
@@ -45,6 +108,128 @@ class NotificationService {
 
   final _random = Random();
 
+  // ─── Initialize ───
+
+  Future<void> initialize() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    _loadNotifications();
+    _generateStartupNotifications();
+  }
+
+  void _loadNotifications() {
+    final json = _prefs?.getString(_keyNotifications);
+    if (json != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(json);
+        _notifications = decoded
+            .map((e) => AppNotification.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {
+        _notifications = [];
+      }
+    }
+  }
+
+  Future<void> _saveNotifications() async {
+    // Keep only the most recent N
+    if (_notifications.length > _maxNotifications) {
+      _notifications = _notifications.sublist(
+        _notifications.length - _maxNotifications,
+      );
+    }
+    final json = jsonEncode(_notifications.map((n) => n.toJson()).toList());
+    await _prefs?.setString(_keyNotifications, json);
+  }
+
+  void _generateStartupNotifications() {
+    // Only generate if we haven't already today
+    final todayKey = _todayString();
+    final lastGenDate = _prefs?.getString('notif_last_gen_date');
+    if (lastGenDate == todayKey) return;
+
+    // Add daily nudge
+    addNotification(
+      title: 'Daily Cosmic Update',
+      message: getDailyNudgeMessage(),
+      icon: Icons.wb_sunny_rounded,
+      color: const Color(0xFF00d4ff),
+      type: 'cosmic',
+    );
+
+    // Add tasks reminder
+    addNotification(
+      title: 'Tasks of the Day Ready ✨',
+      message:
+          'Your personalized daily tasks are ready! Tap to view and start completing them.',
+      icon: Icons.task_alt_rounded,
+      color: const Color(0xFF34c759),
+      type: 'learning',
+    );
+
+    _prefs?.setString('notif_last_gen_date', todayKey);
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  // ─── Notification Management ───
+
+  List<AppNotification> get notifications => List.unmodifiable(
+        _notifications.reversed.toList(),
+      );
+
+  int get unreadCount => _notifications.where((n) => !n.isRead).length;
+
+  Future<void> addNotification({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color color,
+    required String type,
+  }) async {
+    final notif = AppNotification(
+      id: '${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(9999)}',
+      title: title,
+      message: message,
+      iconCodePoint: icon.codePoint,
+      iconFontFamily: icon.fontFamily,
+      colorValue: color.value,
+      timestamp: DateTime.now(),
+      type: type,
+    );
+    _notifications.add(notif);
+    await _saveNotifications();
+
+    // Also fire a device notification (Android/iOS)
+    LocalNotificationService().showNow(
+      title: title,
+      body: message,
+      payload: type,
+    );
+  }
+
+  Future<void> markAllRead() async {
+    for (final n in _notifications) {
+      n.isRead = true;
+    }
+    await _saveNotifications();
+  }
+
+  Future<void> markRead(String id) async {
+    final idx = _notifications.indexWhere((n) => n.id == id);
+    if (idx != -1) {
+      _notifications[idx].isRead = true;
+      await _saveNotifications();
+    }
+  }
+
+  Future<void> removeNotification(String id) async {
+    _notifications.removeWhere((n) => n.id == id);
+    await _saveNotifications();
+  }
+
   // ─── Get Engagement Messages ───
 
   /// Get a streak-at-risk message for in-app display
@@ -64,7 +249,8 @@ class NotificationService {
 
   /// Get an XP milestone message
   String getXpMilestoneMessage({required int xp, int? level}) {
-    String msg = _xpMilestoneMessages[_random.nextInt(_xpMilestoneMessages.length)];
+    String msg =
+        _xpMilestoneMessages[_random.nextInt(_xpMilestoneMessages.length)];
     msg = msg.replaceAll('{xp}', xp.toString());
     if (level != null) msg = msg.replaceAll('{level}', level.toString());
     return msg;
@@ -134,7 +320,8 @@ class NotificationService {
     // Priority 3: Ability tease
     if (nearestAbilityTitle != null && nearestAbilityChapter != null) {
       return EngagementBanner(
-        message: getAbilityTeaseMessage(nearestAbilityTitle, nearestAbilityChapter),
+        message:
+            getAbilityTeaseMessage(nearestAbilityTitle, nearestAbilityChapter),
         type: BannerType.abilityTease,
         icon: Icons.auto_awesome,
         color: const Color(0xFF7B61FF),

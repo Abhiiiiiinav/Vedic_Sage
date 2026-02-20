@@ -1,8 +1,8 @@
 /// Example: How to Use the Production-Grade Chart Storage System
-/// 
+///
 /// This demonstrates the CORRECT architecture:
 /// Birth Data → API/Engine → SVG + Planets → Parser → Hive Storage → Display
-/// 
+///
 /// Key Principles:
 /// ✅ SVG is for display only
 /// ✅ Houses are calculated from Ascendant + Signs
@@ -10,6 +10,7 @@
 /// ✅ Works for all divisional charts (D1-D60)
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../core/services/chart_api_service.dart';
 import '../core/services/chart_storage_service.dart';
 import '../core/services/svg_chart_parser.dart';
@@ -33,8 +34,8 @@ Future<void> exampleFetchAndStoreChart() async {
   // Step 2: Fetch D1 chart from API
   final apiService = ChartApiService();
   final response = await apiService.getChartByDivision(
-    'chart/d1',
     birthDetails,
+    1, // D1 = division 1
   );
 
   if (!response.success || response.svg == null) {
@@ -74,9 +75,22 @@ Future<void> exampleBatchChartStorage() async {
 
   // Fetch multiple charts
   final apiService = ChartApiService();
-  final batchResponse = await apiService.getBatchCharts(
+  final batchResponse = await apiService.getMultipleCharts(
     birthDetails,
-    ['d1', 'd9', 'd10'],
+    charts: [
+      'd1',
+      'd3',
+      'd9',
+      'd10',
+      'd20',
+      'd24',
+      'd27',
+      'd30',
+      'd40',
+      'd45',
+      'd50',
+      'd60'
+    ],
   );
 
   if (!batchResponse.success) {
@@ -84,10 +98,16 @@ Future<void> exampleBatchChartStorage() async {
     return;
   }
 
+  // Convert ChartData map to SVG string map for storage
+  final chartSvgs = <String, String>{};
+  batchResponse.charts?.forEach((key, chartData) {
+    chartSvgs[key] = chartData.svg;
+  });
+
   // Save all charts
   final storageService = ChartStorageService();
   final keys = await storageService.saveBatchCharts(
-    chartSvgs: batchResponse.charts,
+    chartSvgs: chartSvgs,
     ascendantSign: 1, // From API planetary data
     profileId: 'user_123',
   );
@@ -98,7 +118,7 @@ Future<void> exampleBatchChartStorage() async {
 /// Example 3: Load and Display a Chart
 Widget exampleDisplayChart(String profileId) {
   final storageService = ChartStorageService();
-  
+
   // Get D1 chart for profile
   final chart = storageService.getChartByType(profileId, 'd1');
 
@@ -113,18 +133,18 @@ Widget exampleDisplayChart(String profileId) {
         chart.displayName,
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       ),
-      
+
       // Display ascendant
       Text('Ascendant: ${chart.ascendantSignName}'),
-      
+
       // Display SVG
       SvgPicture.string(chart.svg),
-      
+
       // Display house information
       ...List.generate(12, (index) {
         final houseNum = index + 1;
         final planets = chart.getPlanetsInHouse(houseNum);
-        
+
         return ListTile(
           title: Text('House $houseNum'),
           subtitle: Text(
@@ -218,8 +238,8 @@ class _ChartWorkflowExampleState extends State<ChartWorkflowExample> {
       );
 
       final response = await apiService.getChartByDivision(
-        'chart/d1',
         birthDetails,
+        1, // D1 = division 1
       );
 
       if (!response.success || response.svg == null) {
@@ -266,7 +286,7 @@ class _ChartWorkflowExampleState extends State<ChartWorkflowExample> {
         Text(_chart!.displayName),
         Text('Ascendant: ${_chart!.ascendantSignName}'),
         SvgPicture.string(_chart!.svg),
-        
+
         // House list
         Expanded(
           child: ListView.builder(
@@ -274,7 +294,7 @@ class _ChartWorkflowExampleState extends State<ChartWorkflowExample> {
             itemBuilder: (context, index) {
               final houseNum = index + 1;
               final planets = _chart!.getPlanetsInHouse(houseNum);
-              
+
               return ListTile(
                 title: Text('House $houseNum'),
                 subtitle: Text(
@@ -302,7 +322,7 @@ Future<void> exampleExportImport() async {
   // Export chart to JSON
   final chartKey = '0'; // First chart
   final json = storageService.exportChartToJson(chartKey);
-  
+
   // Save to file or send to server
   print('Exported: ${json['chartName']}');
 
@@ -312,7 +332,7 @@ Future<void> exampleExportImport() async {
 }
 
 /// Key Takeaways:
-/// 
+///
 /// ✅ Always fetch from API for accurate data
 /// ✅ Parse SVG to extract planet positions
 /// ✅ Store complete data in Hive (not just SVG)

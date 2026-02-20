@@ -7,10 +7,14 @@ class BentoTile extends StatefulWidget {
   final String title;
   final String subtitle;
   final IconData icon;
+
   /// Accent color used ONLY for icon and title text, not the card background.
   final Color accentColor;
   final VoidCallback onTap;
   final BentoTileSize size;
+
+  /// Optional asset image path shown on the right side of the card.
+  final String? imagePath;
 
   const BentoTile({
     super.key,
@@ -20,6 +24,7 @@ class BentoTile extends StatefulWidget {
     required this.onTap,
     this.accentColor = const Color(0xFF667eea),
     this.size = BentoTileSize.regular,
+    this.imagePath,
   });
 
   @override
@@ -63,9 +68,8 @@ class _BentoTileState extends State<BentoTile>
         },
         onTapCancel: () => _controller.reverse(),
         child: Container(
-          padding: EdgeInsets.all(isHero ? 20 : 16),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            // Neutral dark card — no color fill
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -77,7 +81,52 @@ class _BentoTileState extends State<BentoTile>
               width: 1,
             ),
           ),
-          child: isHero ? _buildHeroLayout() : _buildRegularLayout(),
+          child: Stack(
+            children: [
+              // Main content with padding
+              Padding(
+                padding: EdgeInsets.all(isHero ? 20 : 16),
+                child: isHero ? _buildHeroLayout() : _buildRegularLayout(),
+              ),
+
+              // Optional decorative image on the right
+              if (widget.imagePath != null) _buildDecoImage(isHero),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Decorative image positioned at the top-right of the card
+  Widget _buildDecoImage(bool isHero) {
+    final imgSize = isHero ? 110.0 : 100.0;
+
+    return Positioned(
+      right: -6,
+      top: -6,
+      child: ShaderMask(
+        shaderCallback: (rect) {
+          return LinearGradient(
+            begin: Alignment.centerRight,
+            end: Alignment.centerLeft,
+            colors: [
+              Colors.white,
+              Colors.white.withValues(alpha: 0.9),
+              Colors.white.withValues(alpha: 0.0),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ).createShader(rect);
+        },
+        blendMode: BlendMode.dstIn,
+        child: Opacity(
+          opacity: 0.55,
+          child: Image.asset(
+            widget.imagePath!,
+            width: imgSize,
+            height: imgSize,
+            fit: BoxFit.cover,
+          ),
         ),
       ),
     );
@@ -90,13 +139,13 @@ class _BentoTileState extends State<BentoTile>
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: widget.accentColor.withOpacity(0.15),
+            color: widget.accentColor.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(
             widget.icon,
             color: widget.accentColor,
-            size: 32,
+            size: 42,
           ),
         ),
         const SizedBox(width: 16),

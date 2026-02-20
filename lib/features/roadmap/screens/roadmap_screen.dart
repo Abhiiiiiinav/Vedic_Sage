@@ -1,22 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/learning_roadmap.dart';
 import '../../../core/models/gamification_models.dart';
-import '../../../shared/widgets/astro_card.dart';
+import '../../../core/services/gamification_service.dart';
 import '../../../shared/widgets/astro_background.dart';
-import 'chapter_detail_screen.dart';
-
-// Navigation Targets
-import '../../chart/screens/chart_screen.dart';
-import '../../nakshatra/screens/nakshatra_screen.dart';
-import '../../questions/screens/questions_screen.dart';
-import '../../names/screens/names_screen.dart';
-import '../../growth/screens/growth_screen.dart';
-import '../../arudha/screens/arudha_screen.dart';
 import '../../daily/screens/day_ahead_screen.dart';
-import '../../calculator/screens/birth_details_screen.dart';
 import 'achievements_screen.dart';
+import 'chapter_detail_screen.dart';
 
 class RoadmapScreen extends StatefulWidget {
   const RoadmapScreen({super.key});
@@ -25,42 +16,32 @@ class RoadmapScreen extends StatefulWidget {
   State<RoadmapScreen> createState() => _RoadmapScreenState();
 }
 
-class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProviderStateMixin {
-  late UserProgress _userProgress;
+class _RoadmapScreenState extends State<RoadmapScreen> {
+  final GamificationService _gamification = GamificationService();
+
+  bool _isLoading = true;
+  UserProgress? _progress;
   String _selectedCategory = 'all';
-  late AnimationController _controller;
+  Set<String> _completedLessonKeys = {};
+  Set<String> _completedChapterIds = {};
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..forward();
-    
-    // Initialize mock data (would come from service/provider in real app)
-    _userProgress = UserProgress(
-      totalXP: 850,
-      currentLevel: 5,
-      chapterProgress: {
-        'planets_intro': ChapterProgress(
-            chapterId: 'planets_intro', isUnlocked: true, isCompleted: true, completedLessons: 5, totalLessons: 5, earnedXP: 100, completedDate: DateTime.now()),
-        'sun_deep_dive': ChapterProgress(
-            chapterId: 'sun_deep_dive', isUnlocked: true, isCompleted: true, completedLessons: 6, totalLessons: 6, earnedXP: 150, completedDate: DateTime.now()),
-        'moon_deep_dive': ChapterProgress(
-            chapterId: 'moon_deep_dive', isUnlocked: true, isCompleted: false, completedLessons: 2, totalLessons: 6, earnedXP: 50),
-      },
-      unlockedBadges: ['seeker', 'first_step'],
-      completedAchievements: [],
-      lastActivityDate: DateTime.now(),
-      currentStreak: 4,
-    );
+    _loadProgress();
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Future<void> _loadProgress() async {
+    await _gamification.initialize();
+    final progress = _gamification.getProgress();
+
+    if (!mounted) return;
+    setState(() {
+      _progress = progress;
+      _completedLessonKeys = _gamification.completedLessons.toSet();
+      _completedChapterIds = _gamification.completedChapters.toSet();
+      _isLoading = false;
+    });
   }
 
   @override
@@ -68,346 +49,594 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
     return AstroBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverAppBar(),
-          _buildQuickNavSection(),
-          _buildSectionTitle("Current Module"),
-          _buildActiveChapter(),
-          _buildSectionTitle("Your Journey"),
-          _buildTimelineList(),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
-        ],
+        body: _isLoading ? _buildLoading() : _buildBody(),
       ),
-    ),
     );
   }
 
-  Widget _buildSliverAppBar() {
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: AstroTheme.accentCyan,
+        strokeWidth: 2.4,
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    final progress = _progress!;
+    final chapterStates = _buildChapterStates();
+    final filtered = _selectedCategory == 'all'
+        ? chapterStates
+        : chapterStates
+            .where((s) => s.chapter.category == _selectedCategory)
+            .toList();
+    final active = chapterStates.cast<_ChapterState?>().firstWhere(
+          (s) => s != null && s.isUnlocked && !s.isCompleted,
+          orElse: () => null,
+        );
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        _buildAppBar(progress),
+        SliverToBoxAdapter(child: _buildTopActions()),
+        SliverToBoxAdapter(child: _buildSectionHeader('Continue Learning')),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: active == null
+                ? _buildFinishedCard()
+                : _buildActiveCard(active),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 22, 16, 10),
+            child: _buildSectionHeader('Learning Path'),
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildCategoryChips()),
+        if (filtered.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildEmptyFilter(),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final item = filtered[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildChapterCard(item),
+                  );
+                },
+                childCount: filtered.length,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  SliverAppBar _buildAppBar(UserProgress progress) {
+    final completionPercent = (_completedChapterIds.length /
+            (LearningRoadmap.chapters.isEmpty
+                ? 1
+                : LearningRoadmap.chapters.length) *
+            100)
+        .round();
+
     return SliverAppBar(
-      expandedHeight: 280.0,
-      floating: false,
+      expandedHeight: 260,
       pinned: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AstroTheme.scaffoldBackground.withValues(alpha: 0.92),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded,
+            color: Colors.white, size: 20),
         onPressed: () => Navigator.pop(context),
+      ),
+      title: Text(
+        'Learning Roadmap',
+        style: GoogleFonts.outfit(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 19,
+        ),
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Header Gradient Background
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
-                    AstroTheme.scaffoldBackground,
-                    AstroTheme.scaffoldBackground.withOpacity(0.0),
+                    AstroTheme.accentPurple.withValues(alpha: 0.36),
+                    AstroTheme.accentCyan.withValues(alpha: 0.2),
+                    Colors.transparent,
                   ],
                 ),
               ),
             ),
-            // User Stats Content
+            Positioned(
+              right: -40,
+              top: -20,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AstroTheme.accentCyan.withValues(alpha: 0.15),
+                ),
+              ),
+            ),
             SafeArea(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 58, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Professional Jyotish Curriculum',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Structured modules, measurable progress, and milestone-based mastery.',
+                      style: GoogleFonts.quicksand(
+                        color: Colors.white.withValues(alpha: 0.66),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        _statPill(
+                          icon: Icons.workspace_premium_rounded,
+                          value: 'Lv ${progress.currentLevel}',
+                          color: AstroTheme.accentGold,
+                        ),
+                        const SizedBox(width: 8),
+                        _statPill(
+                          icon: Icons.stars_rounded,
+                          value: '${progress.totalXP} XP',
+                          color: AstroTheme.accentCyan,
+                        ),
+                        const SizedBox(width: 8),
+                        _statPill(
+                          icon: Icons.timeline_rounded,
+                          value: '$completionPercent%',
+                          color: AstroTheme.accentPurple,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopActions() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: _actionButton(
+              icon: Icons.emoji_events_rounded,
+              label: 'Achievements',
+              onTap: () => _openScreen(const AchievementsScreen()),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _actionButton(
+              icon: Icons.wb_sunny_outlined,
+              label: 'Daily Focus',
+              onTap: () => _openScreen(const DayAheadScreen()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        title.toUpperCase(),
+        style: GoogleFonts.outfit(
+          color: Colors.white60,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveCard(_ChapterState active) {
+    final chapter = active.chapter;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openChapter(chapter),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF4D66FF), Color(0xFF00B6D9)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: AstroTheme.accentPurple.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                   const SizedBox(height: 20),
-                   Hero(
-                     tag: 'profile_pic',
-                     child: Container(
-                       padding: const EdgeInsets.all(4),
-                       decoration: BoxDecoration(
-                         shape: BoxShape.circle,
-                         gradient: AstroTheme.primaryGradient,
-                         boxShadow: [BoxShadow(color: AstroTheme.accentPurple.withOpacity(0.5), blurRadius: 20)],
-                       ),
-                       child: const CircleAvatar(
-                         radius: 40,
-                         backgroundColor: Colors.black26, // Added background color for contrast
-                         child: Icon(Icons.person, size: 40, color: Colors.white),
-                       ),
-                     ),
-                   ),
-                   const SizedBox(height: 12),
-                   Text("Vedic Sage", style: AstroTheme.headingMedium),
-                   Text("Level ${_userProgress.currentLevel} • ${_userProgress.totalXP} XP", 
-                     style: AstroTheme.bodyMedium.copyWith(color: AstroTheme.accentCyan, fontWeight: FontWeight.bold)
-                   ),
-                   const SizedBox(height: 20),
-                   Row(
-                     mainAxisAlignment: MainAxisAlignment.center,
-                     children: [
-                       _buildStatChip(Icons.local_fire_department, "${_userProgress.currentStreak} Day Streak", Colors.orange),
-                       const SizedBox(width: 12),
-                       _buildStatChip(Icons.stars, "${_userProgress.unlockedBadges.length} Badges", Colors.purpleAccent),
-                     ],
-                   ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'IN PROGRESS',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(chapter.icon, style: const TextStyle(fontSize: 24)),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                chapter.title,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                chapter.description,
+                style: GoogleFonts.quicksand(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: active.lessonCompletionRatio,
+                  minHeight: 7,
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    '${active.completedLessons}/${chapter.lessons.length} lessons',
+                    style: GoogleFonts.quicksand(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '+${chapter.xpReward} XP',
+                    style: GoogleFonts.jetBrainsMono(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatChip(IconData icon, String label, Color color) {
+  Widget _buildFinishedCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: AstroTheme.cardBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: AstroTheme.accentGreen.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.task_alt_rounded,
+                color: AstroTheme.accentGreen, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'All unlocked modules are complete. Review completed chapters or keep a daily streak.',
+              style: GoogleFonts.quicksand(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickNavSection() {
-    return SliverToBoxAdapter(
-      child: Container(
-        height: 110,
-        margin: const EdgeInsets.symmetric(vertical: 20),
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          physics: const BouncingScrollPhysics(),
-          children: [
-            _buildNavCard("Chart", Icons.auto_awesome, AstroTheme.accentCyan, () => _navTo(const ChartScreen())),
-            _buildNavCard("Nakshatra", Icons.star_outline, AstroTheme.accentPink, () => _navTo(const NakshatraScreen())),
-            _buildNavCard("Q&A", Icons.help_outline, Colors.tealAccent, () => _navTo(const QuestionsScreen())),
-            _buildNavCard("Names", Icons.badge, AstroTheme.accentGold, () => _navTo(const EnhancedNamesScreen())),
-            _buildNavCard("Calc", Icons.calculate_outlined, Colors.orangeAccent, () => _navTo(const BirthDetailsScreen())),
-            _buildNavCard("Growth", Icons.trending_up, Colors.greenAccent, () => _navTo(const GrowthScreen())),
-            _buildNavCard("Arudha", Icons.visibility, Colors.deepPurpleAccent, () => _navTo(const ArudhaScreen())),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildCategoryChips() {
+    final categories = <String>{
+      'all',
+      ...LearningRoadmap.chapters.map((c) => c.category),
+    }.toList();
 
-  Widget _buildNavCard(String title, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 80,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: AstroTheme.cardBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
+    return SizedBox(
+      height: 44,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final selected = category == _selectedCategory;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(
+                category == 'all'
+                    ? 'All'
+                    : category[0].toUpperCase() + category.substring(1),
+                style: GoogleFonts.quicksand(
+                  color: selected ? Colors.white : Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              child: Icon(icon, color: color, size: 24),
+              selected: selected,
+              onSelected: (_) => setState(() => _selectedCategory = category),
+              showCheckmark: false,
+              selectedColor: AstroTheme.accentPurple.withValues(alpha: 0.35),
+              backgroundColor: Colors.white.withValues(alpha: 0.06),
+              side: BorderSide(
+                color: selected
+                    ? AstroTheme.accentPurple.withValues(alpha: 0.7)
+                    : Colors.white.withValues(alpha: 0.12),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyFilter() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AstroTheme.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Text(
+        'No modules in this category yet.',
+        style: GoogleFonts.quicksand(
+          color: Colors.white60,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        child: Text(
-          title.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white38,
-            fontSize: 13,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildChapterCard(_ChapterState item) {
+    final chapter = item.chapter;
+    final statusColor = item.isCompleted
+        ? AstroTheme.accentGreen
+        : item.isUnlocked
+            ? AstroTheme.accentCyan
+            : Colors.white38;
+    final statusLabel = item.isCompleted
+        ? 'Completed'
+        : item.isUnlocked
+            ? 'Unlocked'
+            : 'Locked';
 
-  Widget _buildActiveChapter() {
-    // Find first incomplete or last active
-    final activeChapter = LearningRoadmap.chapters.firstWhere(
-      (c) => _userProgress.chapterProgress[c.id]?.isCompleted == false,
-      orElse: () => LearningRoadmap.chapters.first,
-    );
-    final progress = _userProgress.chapterProgress[activeChapter.id] ?? 
-        ChapterProgress(chapterId: activeChapter.id, isUnlocked: true, isCompleted: false, completedLessons: 0, totalLessons: activeChapter.lessons.length, earnedXP: 0);
-
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverToBoxAdapter(
-        child: GestureDetector(
-          onTap: () => _navTo(ChapterDetailScreen(chapter: activeChapter)),
-          child: Container(
-            height: 200,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AstroTheme.accentPurple, AstroTheme.accentCyan]),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: AstroTheme.accentPurple.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))],
-            ),
-            child: Stack(
-              children: [
-                Positioned(right: -30, top: -30, child: Icon(Icons.explore, size: 150, color: Colors.white.withOpacity(0.1))),
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(10)),
-                        child: const Text("CONTINUE LEARNING", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                      const Spacer(),
-                      Text(activeChapter.title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, height: 1.2)),
-                      const SizedBox(height: 8),
-                      Text("Lesson ${progress.completedLessons + 1} of ${progress.totalLessons}", style: const TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (progress.completedLessons / (progress.totalLessons > 0 ? progress.totalLessons : 1)),
-                          backgroundColor: Colors.black26,
-                          valueColor: const AlwaysStoppedAnimation(Colors.white),
-                          minHeight: 6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: item.isUnlocked ? () => _openChapter(chapter) : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AstroTheme.cardBackground.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: item.isUnlocked
+                  ? Colors.white.withValues(alpha: 0.13)
+                  : Colors.white.withValues(alpha: 0.06),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimelineList() {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final chapter = LearningRoadmap.chapters[index];
-            final progress = _userProgress.chapterProgress[chapter.id];
-            final isLocked = false; // UNLOCKED: All modules are now accessible
-            final isCompleted = progress?.isCompleted ?? false;
-            
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: _buildTimelineItem(chapter, isLocked, isCompleted, index == LearningRoadmap.chapters.length - 1),
-            );
-          },
-          childCount: LearningRoadmap.chapters.length,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimelineItem(LearningChapter chapter, bool isLocked, bool isCompleted, bool isLast) {
-    final color = isLocked ? Colors.white12 : (isCompleted ? AstroTheme.accentGold : Colors.white);
-    
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Timeline Line & Dot
-          SizedBox(
-            width: 40,
-            child: Column(
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: isCompleted ? AstroTheme.accentGold : AstroTheme.scaffoldBackground,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: isCompleted ? AstroTheme.accentGold : Colors.white24, width: 2),
-                  ),
-                  child: isCompleted ? const Icon(Icons.check, size: 10, color: Colors.black) : null,
-                ),
-                if (!isLast) 
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: Colors.white12,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          
-          // Content Card
-          Expanded(
-            child: GestureDetector(
-              onTap: isLocked ? null : () => _navTo(ChapterDetailScreen(chapter: chapter)),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: AstroTheme.cardBackground,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: isLocked ? Colors.transparent : Colors.white10),
+                  color: statusColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
+                child: Center(
+                  child: Text(
+                    chapter.icon,
+                    style: TextStyle(
+                      fontSize: 22,
+                      color: item.isUnlocked ? null : Colors.white38,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isLocked ? Colors.white10 : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(16),
+                    Text(
+                      chapter.title,
+                      style: GoogleFonts.outfit(
+                        color: item.isUnlocked ? Colors.white : Colors.white54,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: Text(chapter.icon, style: TextStyle(fontSize: 24, color: isLocked ? Colors.white24 : Colors.white)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            chapter.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: isLocked ? Colors.white38 : Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "${chapter.xpReward} XP Reward",
-                            style: TextStyle(fontSize: 12, color: isLocked ? Colors.white12 : AstroTheme.accentGold),
-                          ),
-                        ],
+                    const SizedBox(height: 3),
+                    Text(
+                      chapter.description,
+                      style: GoogleFonts.quicksand(
+                        color: Colors.white.withValues(alpha: 0.52),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: item.lessonCompletionRatio,
+                        minHeight: 5,
+                        backgroundColor: Colors.white.withValues(alpha: 0.08),
+                        valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                       ),
                     ),
-                    if (isLocked) const Icon(Icons.lock_outline, color: Colors.white12),
                   ],
                 ),
               ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: GoogleFonts.outfit(
+                        color: statusColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${item.completedLessons}/${chapter.lessons.length}',
+                    style: GoogleFonts.jetBrainsMono(
+                      color: Colors.white54,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '+${chapter.xpReward} XP',
+                    style: GoogleFonts.jetBrainsMono(
+                      color: AstroTheme.accentGold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statPill({
+    required IconData icon,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: GoogleFonts.outfit(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -415,7 +644,100 @@ class _RoadmapScreenState extends State<RoadmapScreen> with SingleTickerProvider
     );
   }
 
-  void _navTo(Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  Widget _actionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: AstroTheme.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AstroTheme.accentCyan, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+
+  List<_ChapterState> _buildChapterStates() {
+    final completedChapters = _completedChapterIds;
+    final completedLessons = _completedLessonKeys;
+
+    return LearningRoadmap.chapters.map((chapter) {
+      final totalLessons = chapter.lessons.length;
+      final doneLessons = chapter.lessons
+          .where(
+              (lesson) => completedLessons.contains(_lessonProgressKey(lesson)))
+          .length;
+      final isCompleted = completedChapters.contains(chapter.id) ||
+          (totalLessons > 0 && doneLessons >= totalLessons);
+      final isUnlocked = isCompleted ||
+          chapter.prerequisites.every((p) => completedChapters.contains(p));
+
+      return _ChapterState(
+        chapter: chapter,
+        isUnlocked: isUnlocked,
+        isCompleted: isCompleted,
+        completedLessons: doneLessons,
+      );
+    }).toList()
+      ..sort((a, b) => a.chapter.orderIndex.compareTo(b.chapter.orderIndex));
+  }
+
+  String _lessonProgressKey(Lesson lesson) => lesson.quizId ?? lesson.id;
+
+  Future<void> _openChapter(LearningChapter chapter) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ChapterDetailScreen(chapter: chapter)),
+    );
+    await _loadProgress();
+  }
+
+  Future<void> _openScreen(Widget screen) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    await _loadProgress();
+  }
+}
+
+class _ChapterState {
+  final LearningChapter chapter;
+  final bool isUnlocked;
+  final bool isCompleted;
+  final int completedLessons;
+
+  const _ChapterState({
+    required this.chapter,
+    required this.isUnlocked,
+    required this.isCompleted,
+    required this.completedLessons,
+  });
+
+  double get lessonCompletionRatio =>
+      chapter.lessons.isEmpty ? 0 : completedLessons / chapter.lessons.length;
 }

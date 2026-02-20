@@ -44,6 +44,28 @@ class GamificationService {
     await _prefs?.setInt(_keyTotalXP, totalXP + amount);
   }
 
+  /// XP earned within the current level
+  int get xpInCurrentLevel {
+    int xp = totalXP;
+    int threshold = 200;
+    while (xp >= threshold) {
+      xp -= threshold;
+      threshold += 100;
+    }
+    return xp;
+  }
+
+  /// XP needed to reach the next level
+  int get xpForNextLevel {
+    int xp = totalXP;
+    int threshold = 200;
+    while (xp >= threshold) {
+      xp -= threshold;
+      threshold += 100;
+    }
+    return threshold;
+  }
+
   // ─── Streak ───
 
   int get currentStreak => _prefs?.getInt(_keyCurrentStreak) ?? 0;
@@ -127,8 +149,7 @@ class GamificationService {
   List<String> get unlockedAbilities =>
       _prefs?.getStringList(_keyUnlockedAbilities) ?? [];
 
-  bool hasAbility(String abilityId) =>
-      unlockedAbilities.contains(abilityId);
+  bool hasAbility(String abilityId) => unlockedAbilities.contains(abilityId);
 
   Future<void> unlockAbility(String abilityId) async {
     final abilities = unlockedAbilities;

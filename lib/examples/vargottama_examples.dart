@@ -1,14 +1,14 @@
 /// Vargottama Analysis Examples
-/// 
+///
 /// Vargottama = Planet in same ZODIAC SIGN in D1 and divisional chart
 /// This is a powerful placement indicating strength and consistency
-/// 
+///
 /// IMPORTANT: Vargottama is based on SIGNS, not houses!
 /// Example:
 /// - Sun in Aries (sign 1) in D1
 /// - Sun in Aries (sign 1) in D9
 /// → Sun is Vargottama ✅
-/// 
+///
 /// Even if houses are different:
 /// - Sun in House 1 (Aries) in D1
 /// - Sun in House 5 (Aries) in D9
@@ -24,18 +24,18 @@ import '../core/repositories/chart_repository.dart';
 
 void exampleVargottamaD9() {
   final store = ProfileStore();
-  
+
   // Get Vargottama planets (D1 vs D9)
   final vargottama = store.getVargottamaPlanets();
-  
+
   print('Vargottama Planets (D1 = D9):');
   for (var planet in vargottama) {
     final d1 = store.d1Chart;
     final d9 = store.d9Chart;
-    
+
     final d1Sign = d1?.getSignNameForPlanet(planet);
     final d9Sign = d9?.getSignNameForPlanet(planet);
-    
+
     print('  $planet: $d1Sign (D1) = $d9Sign (D9) ✅');
   }
 }
@@ -46,13 +46,13 @@ void exampleVargottamaD9() {
 
 void exampleVargottamaAllCharts() {
   final store = ProfileStore();
-  
+
   // Get Vargottama across all divisional charts
   final vargottamaMap = store.getVargottamaPlanetsAcrossCharts();
-  
+
   print('Vargottama Analysis Across All Charts:');
   print('=====================================');
-  
+
   vargottamaMap.forEach((chartType, planets) {
     print('\n$chartType:');
     for (var planet in planets) {
@@ -69,17 +69,18 @@ void exampleVargottamaAllCharts() {
 
 void examplePlanetVargottamaAnalysis(String planet) {
   final store = ProfileStore();
-  
+
   final analysis = store.getVargottamaAnalysis(planet);
-  
+
   print('Vargottama Analysis for $planet:');
   print('================================');
   print('D1 Sign: ${analysis['d1SignName']}');
   print('Vargottama in ${analysis['vargottamaCount']} charts');
   print('Charts: ${(analysis['vargottamaIn'] as List).join(", ")}');
-  
+
   print('\nDetailed Comparison:');
-  final comparison = analysis['signComparison'] as Map<String, Map<String, dynamic>>;
+  final comparison =
+      analysis['signComparison'] as Map<String, Map<String, dynamic>>;
   comparison.forEach((chartType, data) {
     final isVargottama = data['isVargottama'] as bool;
     final signName = data['signName'];
@@ -98,7 +99,7 @@ class VargottamaAnalysisWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = ProfileStore();
-    
+
     if (!store.isLoaded) {
       return const Center(child: Text('No profile loaded'));
     }
@@ -115,7 +116,7 @@ class VargottamaAnalysisWidget extends StatelessWidget {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
         ),
-        
+
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -123,12 +124,12 @@ class VargottamaAnalysisWidget extends StatelessWidget {
             style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
           ),
         ),
-        
+
         const Divider(height: 32),
-        
+
         // D9 Vargottama (most important)
         _buildChartSection('D9 (Navamsa)', vargottamaMap['d9'] ?? []),
-        
+
         // Other charts
         ...vargottamaMap.entries
             .where((e) => e.key != 'd9')
@@ -190,7 +191,7 @@ class VargottamaAnalysisWidget extends StatelessWidget {
 Map<String, int> findStrongestPlanets() {
   final store = ProfileStore();
   final d1 = store.d1Chart;
-  
+
   if (d1 == null || store.charts == null) return {};
 
   final planetStrength = <String, int>{};
@@ -198,25 +199,24 @@ Map<String, int> findStrongestPlanets() {
   // Count Vargottama occurrences for each planet
   for (var planet in d1.getAllPlanets()) {
     int count = 0;
-    
+
     for (var entry in store.charts!.entries) {
       if (entry.key == 'd1') continue;
-      
+
       final d1Sign = d1.getSignForPlanet(planet);
       final divSign = entry.value.getSignForPlanet(planet);
-      
+
       if (d1Sign != null && divSign != null && d1Sign == divSign) {
         count++;
       }
     }
-    
+
     planetStrength[planet] = count;
   }
 
   // Sort by strength
   final sorted = Map.fromEntries(
-    planetStrength.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value)),
+    planetStrength.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
   );
 
   return sorted;
@@ -224,10 +224,10 @@ Map<String, int> findStrongestPlanets() {
 
 void printStrongestPlanets() {
   final strength = findStrongestPlanets();
-  
+
   print('Planet Strength (Vargottama Count):');
   print('===================================');
-  
+
   strength.forEach((planet, count) {
     final stars = '⭐' * count;
     print('$planet: $count charts $stars');
@@ -245,7 +245,9 @@ class VargottamaReport {
     final strength = findStrongestPlanets();
 
     // Find planets with maximum Vargottama
-    final maxStrength = strength.values.isEmpty ? 0 : strength.values.reduce((a, b) => a > b ? a : b);
+    final maxStrength = strength.values.isEmpty
+        ? 0
+        : strength.values.reduce((a, b) => a > b ? a : b);
     final strongestPlanets = strength.entries
         .where((e) => e.value == maxStrength)
         .map((e) => e.key)
@@ -266,10 +268,8 @@ class VargottamaReport {
     List<String> strongestPlanets,
     int maxStrength,
   ) {
-    final totalVargottama = vargottamaMap.values
-        .expand((planets) => planets)
-        .toSet()
-        .length;
+    final totalVargottama =
+        vargottamaMap.values.expand((planets) => planets).toSet().length;
 
     return '''
 Vargottama Analysis Summary
@@ -295,7 +295,7 @@ ${vargottamaMap.entries.map((e) => '- ${e.key}: ${e.value.join(", ")}').join('\n
 Future<void> exampleCompleteFlow() async {
   // 1. Load charts
   final repo = ChartRepository();
-  final charts = await repo.fetchEssentialCharts(
+  final _ = await repo.fetchEssentialCharts(
     birthDetails: {
       'year': 1995,
       'month': 1,
@@ -311,10 +311,8 @@ Future<void> exampleCompleteFlow() async {
   );
 
   // 2. Load into store
-  ProfileStore().loadProfile(
-    profile, // Your UserProfileModel
-    charts,
-  );
+  // TODO: Replace with your actual UserProfileModel instance
+  // ProfileStore().loadProfile(yourProfileModel, charts);
 
   // 3. Analyze Vargottama
   print('\n=== D9 Vargottama ===');

@@ -1,96 +1,48 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'direct_svg_chart_service.dart';
+import 'free_astrology_api_service.dart';
+import 'svg_chart_parser.dart';
 
-/// Service for communicating with the Python Flask backend
-/// which proxies requests to the Free Astrology API for SVG chart generation
+/// Compatibility service for chart + planets APIs.
+/// Internally this now calls Free Astrology API directly (no Flask dependency).
 class ChartApiService {
-  // Base URL for the Flask API
-  // Use 10.0.2.2 for Android Emulator
-  // Use localhost for Web/iOS Simulator
-  // Use your machine's IP for physical devices
-  static const String _androidEmulatorUrl = 'http://10.0.2.2:5000';
-  static const String _localHostUrl = 'http://localhost:5000';
-  static const String _webUrl = 'http://127.0.0.1:5000';
-  static const String _physicalDeviceUrl =
-      'http://10.245.213.212:5000'; // PC's WiFi IP
+  static const String _defaultBaseUrl = 'https://json.freeastrologyapi.com';
+  static const List<String> _signNames = [
+    'Aries',
+    'Taurus',
+    'Gemini',
+    'Cancer',
+    'Leo',
+    'Virgo',
+    'Libra',
+    'Scorpio',
+    'Sagittarius',
+    'Capricorn',
+    'Aquarius',
+    'Pisces',
+  ];
 
   final String baseUrl;
   final http.Client _client;
+  final DirectSvgChartService _directSvgService;
 
   ChartApiService({
     String? customBaseUrl,
     http.Client? client,
-  })  : baseUrl = customBaseUrl ?? _getDefaultBaseUrl(),
-        _client = client ?? http.Client();
-
-  /// Determine the appropriate base URL based on platform
-  static String _getDefaultBaseUrl() {
-    // For physical Android devices, use PC's IP address
-    // For web, use localhost
-    // For Android emulator, use 10.0.2.2
-    // For iOS simulator, use localhost
-    return _physicalDeviceUrl; // Changed to use PC's IP for phone
-  }
+  })  : baseUrl = customBaseUrl ?? _defaultBaseUrl,
+        _client = client ?? http.Client(),
+        _directSvgService = DirectSvgChartService();
 
   /// Check if the backend is running
   Future<bool> healthCheck() async {
-    try {
-      final response = await _client
-          .get(
-            Uri.parse('$baseUrl/'),
-          )
-          .timeout(const Duration(seconds: 5));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      print('ChartApiService: Health check failed - $e');
-      return false;
-    }
+    return true;
   }
 
   /// Generate D1 Rasi Chart (Birth Chart) SVG using GET endpoint
   /// This is useful for simpler use cases with query parameters
   Future<ChartResponse> getKundaliChartViaGet(BirthDetails birthDetails,
       {String division = 'd1'}) async {
-    try {
-      final uri = Uri.parse('$baseUrl/kundali').replace(queryParameters: {
-        'year': birthDetails.year.toString(),
-        'month': birthDetails.month.toString(),
-        'date': birthDetails.date.toString(),
-        'hours': birthDetails.hours.toString(),
-        'minutes': birthDetails.minutes.toString(),
-        'seconds': birthDetails.seconds.toString(),
-        'latitude': birthDetails.latitude.toString(),
-        'longitude': birthDetails.longitude.toString(),
-        'timezone': birthDetails.timezone.toString(),
-        'ayanamsha': birthDetails.ayanamsha,
-        'division': division,
-      });
-
-      final response =
-          await _client.get(uri).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ChartResponse(
-          success: data['success'] ?? false,
-          svg: data['svg'],
-          chartType: data['chart_type'],
-          name: data['chart_name'],
-        );
-      } else {
-        final error = jsonDecode(response.body);
-        return ChartResponse(
-          success: false,
-          error: error['error'] ?? 'Unknown error',
-        );
-      }
-    } catch (e) {
-      return ChartResponse(
-        success: false,
-        error: 'Failed to connect to chart server: $e',
-      );
-    }
+    return _fetchChart('/chart/${division.toLowerCase()}', birthDetails);
   }
 
   /// Generate D1 Rasi Chart (Birth Chart) SVG
@@ -147,58 +99,43 @@ class ChartApiService {
     List<String> charts = const ['d1', 'd9', 'd10'],
   }) async {
     try {
-      print('📡 Fetching batch charts: ${charts.join(", ")}');
+      print('📡 Fetching batch charts directly: ${charts.join(", ")}');
+      final parsedCharts = <String, ChartData>{};
+      final errors = <String, String>{};
 
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/charts/batch'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              ...birthDetails.toJson(),
-              'charts': charts,
-            }),
-          )
-          .timeout(const Duration(seconds: 90));
+      final futures = charts.map((chartKey) async {
+        final result = await _directSvgService.fetchChartAsJson(
+          division: chartKey.toLowerCase(),
+          request: _toSvgRequest(birthDetails),
+        );
+        return MapEntry(chartKey.toLowerCase(), result);
+      }).toList();
 
-      print('📥 Batch response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        // Parse charts from response
-        Map<String, ChartData> parsedCharts = {};
-        if (data['charts'] != null) {
-          (data['charts'] as Map<String, dynamic>).forEach((key, value) {
-            parsedCharts[key] = ChartData(
-              svg: value['svg'],
-              name: value['name'],
-            );
-          });
+      final results = await Future.wait(futures);
+      for (final item in results) {
+        final key = item.key;
+        final result = item.value;
+        if (result['success'] == true && result['svg'] != null) {
+          parsedCharts[key] = ChartData(
+            svg: result['svg'] as String,
+            name: (result['chart_name'] as String?) ?? key.toUpperCase(),
+          );
+        } else {
+          errors[key] = (result['error'] as String?) ?? 'Unknown error';
         }
-
-        print('✅ Batch received: ${parsedCharts.length} charts');
-
-        return BatchChartResponse(
-          success: data['success'] ?? false,
-          charts: parsedCharts,
-          count: data['count'] ?? 0,
-          errors: data['errors'] != null
-              ? Map<String, String>.from(data['errors'])
-              : null,
-        );
-      } else {
-        print('❌ Batch error: ${response.body}');
-        final error = jsonDecode(response.body);
-        return BatchChartResponse(
-          success: false,
-          error: error['error'] ?? 'Unknown error',
-        );
       }
+
+      return BatchChartResponse(
+        success: parsedCharts.isNotEmpty,
+        charts: parsedCharts,
+        count: parsedCharts.length,
+        errors: errors.isEmpty ? null : errors,
+      );
     } catch (e) {
       print('❌ Batch network error: $e');
       return BatchChartResponse(
         success: false,
-        error: 'Failed to connect to chart server: $e',
+        error: 'Failed to fetch charts: $e',
       );
     }
   }
@@ -209,43 +146,31 @@ class ChartApiService {
     BirthDetails birthDetails,
   ) async {
     try {
-      print('📡 Fetching chart from: $baseUrl$endpoint');
+      final division = endpoint.split('/').last.toLowerCase();
+      final result = await _directSvgService.fetchChartAsJson(
+        division: division,
+        request: _toSvgRequest(birthDetails),
+      );
 
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl$endpoint'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(birthDetails.toJson()),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      print('📥 Response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final svgContent = data['svg'] as String?;
-
-        print('✅ Chart received: ${svgContent?.length ?? 0} chars');
-
+      if (result['success'] == true) {
+        final svgContent = result['svg'] as String?;
         return ChartResponse(
-          success: data['success'] ?? true,
+          success: true,
           svg: svgContent,
-          chartType: data['chart_type'],
-          name: data['chart_name'] ?? data['name'],
-        );
-      } else {
-        print('❌ Error response: ${response.body}');
-        final error = jsonDecode(response.body);
-        return ChartResponse(
-          success: false,
-          error: error['error'] ?? 'Unknown error',
+          chartType: result['chart_type'] as String?,
+          name: result['chart_name'] as String?,
         );
       }
+
+      return ChartResponse(
+        success: false,
+        error: (result['error'] as String?) ?? 'Unknown error',
+      );
     } catch (e) {
       print('❌ Network error: $e');
       return ChartResponse(
         success: false,
-        error: 'Failed to connect to chart server: $e',
+        error: 'Failed to fetch chart: $e',
       );
     }
   }
@@ -254,34 +179,36 @@ class ChartApiService {
   Future<Map<String, dynamic>> getPlanetaryData(
       BirthDetails birthDetails) async {
     try {
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/planets'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(birthDetails.toJson()),
-          )
-          .timeout(const Duration(seconds: 30));
+      final data = await FreeAstrologyApiService.fetchBirthChart(
+        year: birthDetails.year,
+        month: birthDetails.month,
+        date: birthDetails.date,
+        hours: birthDetails.hours,
+        minutes: birthDetails.minutes,
+        latitude: birthDetails.latitude,
+        longitude: birthDetails.longitude,
+        timezone: birthDetails.timezone,
+        config: {
+          'observation_point': birthDetails.observationPoint,
+          'ayanamsha': birthDetails.ayanamsha,
+        },
+      );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true && data['output'] != null) {
-          // Flatten the list of maps [{"0": {...}}, {"1": {...}}] into a single map
-          final outputList = data['output'] as List;
-          final Map<String, dynamic> planets = {};
-
-          for (var item in outputList) {
-            if (item is Map) {
-              item.forEach((key, value) {
-                if (value is Map && value.containsKey('name')) {
-                  planets[value['name']] = value;
-                } else if (key == 'ayanamsa') {
-                  planets['ayanamsa'] = value;
-                }
-              });
-            }
+      final output = data['output'] ?? data;
+      if (output is List) {
+        final planets = <String, dynamic>{};
+        for (final item in output) {
+          if (item is Map) {
+            item.forEach((key, value) {
+              if (value is Map && value.containsKey('name')) {
+                planets[value['name'].toString()] = value;
+              } else if (key.toString() == 'ayanamsa') {
+                planets['ayanamsa'] = value;
+              }
+            });
           }
-          return planets;
         }
+        return planets;
       }
       return {};
     } catch (e) {
@@ -307,36 +234,113 @@ class ChartApiService {
     List<String>? divisions,
   }) async {
     try {
-      final body = {
-        'year': year,
-        'month': month,
-        'date': date,
-        'hours': hours,
-        'minutes': minutes,
-        'seconds': seconds,
-        'latitude': latitude,
-        'longitude': longitude,
-        'timezone': timezone,
-        'ayanamsha': ayanamsha,
-        if (divisions != null) 'divisions': divisions,
-      };
-
-      final response = await _client.post(
-        Uri.parse('$baseUrl/kundali/full'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
+      final birthDetails = BirthDetails(
+        year: year,
+        month: month,
+        date: date,
+        hours: hours,
+        minutes: minutes,
+        seconds: seconds,
+        latitude: latitude,
+        longitude: longitude,
+        timezone: timezone,
+        ayanamsha: ayanamsha,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          print('✅ Full kundali fetched: ${data['count']} divisions');
-          return data;
+      final requestedDivisions = divisions ??
+          const [
+            'd1',
+            'd2',
+            'd3',
+            'd4',
+            'd5',
+            'd6',
+            'd7',
+            'd8',
+            'd9',
+            'd10',
+            'd11',
+            'd12',
+            'd16',
+            'd20',
+            'd24',
+            'd27',
+            'd30',
+            'd40',
+            'd45',
+            'd60',
+          ];
+
+      final divisionsResult = <String, dynamic>{};
+      final errors = <String, String>{};
+      for (final division in requestedDivisions) {
+        final result = await _directSvgService.fetchChartAsJson(
+          division: division.toLowerCase(),
+          request: _toSvgRequest(birthDetails),
+        );
+
+        if (result['success'] == true && result['svg'] is String) {
+          final svg = result['svg'] as String;
+          final parsed = SvgChartParser.extractPositions(svg);
+          divisionsResult[division.toLowerCase()] = {
+            'svg': svg,
+            'chart_name': result['chart_name'] ?? division.toUpperCase(),
+            'ascendant_sign': parsed.ascendantSign,
+            'ascendant_name': parsed.ascendantName,
+            'planet_signs': parsed.planetSigns,
+            'planets_in_houses': parsed.planetsInHouses
+                .map((k, v) => MapEntry(k.toString(), v)),
+          };
+        } else {
+          errors[division.toLowerCase()] =
+              (result['error'] as String?) ?? 'Unknown error';
         }
       }
 
-      print('❌ Full kundali fetch failed: ${response.statusCode}');
-      return null;
+      final planetaryData = await getPlanetaryData(birthDetails);
+      final d1Planets = <String, dynamic>{};
+      final nakshatras = <String, dynamic>{};
+
+      planetaryData.forEach((name, value) {
+        if (value is! Map<String, dynamic>) return;
+        final fullDegree =
+            ((value['fullDegree'] ?? value['full_degree'] ?? 0) as num)
+                .toDouble();
+        final sign =
+            ((value['current_sign'] ?? value['sign_num'] ?? 0) as num).toInt();
+        final nak = SvgChartParser.calculateNakshatra(fullDegree);
+        d1Planets[name] = {
+          'fullDegree': fullDegree,
+          'normDegree': ((value['normDegree'] ?? value['sign_degree'] ?? 0)
+                  as num)
+              .toDouble(),
+          'sign': sign,
+          'sign_name': sign > 0 ? _signNames[sign - 1] : 'Unknown',
+          'house': ((value['house_number'] ?? value['house'] ?? 0) as num)
+              .toInt(),
+          'isRetro': (value['isRetro'] ?? value['is_retro'] ?? false) as bool,
+          'nakshatra': nak.nakshatra,
+          'nakshatra_pada': nak.pada,
+          'nakshatra_lord': nak.lord,
+        };
+
+        if (name != 'Ascendant' && name != 'ayanamsa') {
+          nakshatras[name] = {
+            'nakshatra': nak.nakshatra,
+            'pada': nak.pada,
+            'lord': nak.lord,
+          };
+        }
+      });
+
+      return {
+        'success': divisionsResult.isNotEmpty,
+        'divisions': divisionsResult,
+        'd1_planets': d1Planets,
+        'nakshatras': nakshatras,
+        'errors': errors.isEmpty ? null : errors,
+        'count': divisionsResult.length,
+      };
     } catch (e) {
       print('❌ Error fetching full kundali: $e');
       return null;
@@ -346,6 +350,27 @@ class ChartApiService {
   /// Dispose of HTTP client
   void dispose() {
     _client.close();
+    _directSvgService.dispose();
+  }
+
+  void useNextApiKey() {
+    _directSvgService.useNextApiKey();
+  }
+
+  SvgChartRequest _toSvgRequest(BirthDetails birthDetails) {
+    return SvgChartRequest(
+      year: birthDetails.year,
+      month: birthDetails.month,
+      date: birthDetails.date,
+      hours: birthDetails.hours,
+      minutes: birthDetails.minutes,
+      seconds: birthDetails.seconds,
+      latitude: birthDetails.latitude,
+      longitude: birthDetails.longitude,
+      timezone: birthDetails.timezone,
+      observationPoint: birthDetails.observationPoint,
+      ayanamsha: birthDetails.ayanamsha,
+    );
   }
 }
 

@@ -66,16 +66,27 @@ class HiveDatabaseService {
     }
   }
 
-  /// Open all required boxes
+  /// Open all required boxes with corruption recovery
   Future<void> _openBoxes() async {
-    await Hive.openBox<UserProfileModel>(HiveBoxes.userProfile);
-    await Hive.openBox<SavedChartModel>(HiveBoxes.savedCharts);
-    await Hive.openBox<ChartCacheModel>(HiveBoxes.chartCache);
-    await Hive.openBox<AppSettingsModel>(HiveBoxes.appSettings);
-    await Hive.openBox<AnalysisHistoryModel>(HiveBoxes.analysisHistory);
-    await Hive.openBox<QuizProgressModel>(HiveBoxes.quizProgress);
-    await Hive.openBox<DivisionalChartModel>('divisional_charts');
-    await Hive.openBox<KundaliRecordModel>(HiveBoxes.kundaliRecords);
+    await _safeOpenBox<UserProfileModel>(HiveBoxes.userProfile);
+    await _safeOpenBox<SavedChartModel>(HiveBoxes.savedCharts);
+    await _safeOpenBox<ChartCacheModel>(HiveBoxes.chartCache);
+    await _safeOpenBox<AppSettingsModel>(HiveBoxes.appSettings);
+    await _safeOpenBox<AnalysisHistoryModel>(HiveBoxes.analysisHistory);
+    await _safeOpenBox<QuizProgressModel>(HiveBoxes.quizProgress);
+    await _safeOpenBox<DivisionalChartModel>('divisional_charts');
+    await _safeOpenBox<KundaliRecordModel>(HiveBoxes.kundaliRecords);
+  }
+
+  /// Try to open a Hive box; if the data is corrupted, delete and re-open.
+  Future<void> _safeOpenBox<T>(String boxName) async {
+    try {
+      await Hive.openBox<T>(boxName);
+    } catch (e) {
+      print('⚠️ Corrupted box "$boxName", resetting: $e');
+      await Hive.deleteBoxFromDisk(boxName);
+      await Hive.openBox<T>(boxName);
+    }
   }
 
   // ============================================================

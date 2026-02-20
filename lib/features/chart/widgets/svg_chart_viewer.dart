@@ -80,6 +80,8 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
   String? _error;
   bool _isServerAvailable = false;
 
+  double get _alignedSize => widget.size.floorToDouble();
+
   @override
   void initState() {
     super.initState();
@@ -175,13 +177,14 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
 
   Widget _buildLoadingState() {
     return Container(
-      width: widget.size,
-      height: widget.size,
+      width: _alignedSize,
+      height: _alignedSize,
       decoration: BoxDecoration(
         color: const Color(0xFF16213e),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF9D4EDD).withOpacity(0.3),
+          color: const Color(0xFF9D4EDD).withOpacity(0.45),
+          width: 1.2,
         ),
       ),
       child: const Center(
@@ -207,12 +210,12 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
 
   Widget _buildErrorState() {
     return Container(
-      width: widget.size,
-      height: widget.size,
+      width: _alignedSize,
+      height: _alignedSize,
       decoration: BoxDecoration(
         color: const Color(0xFF16213e),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: Colors.red.withOpacity(0.45), width: 1.2),
       ),
       child: Center(
         child: Padding(
@@ -236,7 +239,10 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _checkServerAndLoadChart,
+                onPressed: () {
+                  _apiService.useNextApiKey();
+                  _checkServerAndLoadChart();
+                },
                 icon: const Icon(Icons.refresh, size: 18),
                 label: const Text('Retry'),
                 style: ElevatedButton.styleFrom(
@@ -257,24 +263,22 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
 
   Widget _buildChartView() {
     return Container(
-      width: widget.size,
-      height: widget.size,
+      width: _alignedSize,
+      height: _alignedSize,
       decoration: BoxDecoration(
+        color: const Color(0xFF0F1A3A),
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF9D4EDD).withOpacity(0.2),
-            blurRadius: 20,
-            spreadRadius: 2,
-          ),
-        ],
+        border: Border.all(
+          color: const Color(0xFF9D4EDD).withOpacity(0.35),
+          width: 1.0,
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: SvgPicture.string(
           preprocessSvg(_svgContent!),
-          width: widget.size,
-          height: widget.size,
+          width: _alignedSize,
+          height: _alignedSize,
           fit: BoxFit.contain,
         ),
       ),
@@ -416,7 +420,8 @@ class _DivisionalChartsGridState extends State<DivisionalChartsGrid> {
         color: const Color(0xFF16213e),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF9D4EDD).withOpacity(0.3),
+          color: const Color(0xFF9D4EDD).withOpacity(0.4),
+          width: 1.0,
         ),
       ),
       child: Column(
@@ -580,14 +585,11 @@ class _HorizontalChartViewerState extends State<HorizontalChartViewer> {
                   width: widget.chartSize,
                   height: widget.chartSize,
                   decoration: BoxDecoration(
+                    color: const Color(0xFF0F1A3A),
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF9D4EDD).withOpacity(0.2),
-                        blurRadius: 15,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                    border: Border.all(
+                      color: const Color(0xFF9D4EDD).withOpacity(0.35),
+                    ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),

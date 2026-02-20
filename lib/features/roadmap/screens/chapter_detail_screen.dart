@@ -1,276 +1,366 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/learning_roadmap.dart';
 import '../../../core/models/gamification_models.dart';
 import '../../../core/services/gamification_service.dart';
-import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/astro_background.dart';
+import 'lesson_detail_screen.dart';
 import 'quiz_screen.dart';
 
-class ChapterDetailScreen extends StatelessWidget {
+class ChapterDetailScreen extends StatefulWidget {
   final LearningChapter chapter;
 
   const ChapterDetailScreen({super.key, required this.chapter});
 
   @override
+  State<ChapterDetailScreen> createState() => _ChapterDetailScreenState();
+}
+
+class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
+  final GamificationService _gamification = GamificationService();
+  bool _isLoading = true;
+  Set<String> _completedLessonKeys = {};
+  Set<String> _completedChapterIds = {};
+
+  LearningChapter get chapter => widget.chapter;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProgress();
+  }
+
+  Future<void> _loadProgress() async {
+    await _gamification.initialize();
+    if (!mounted) return;
+    setState(() {
+      _completedLessonKeys = _gamification.completedLessons.toSet();
+      _completedChapterIds = _gamification.completedChapters.toSet();
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(context),
-          SliverPadding(
-            padding: const EdgeInsets.all(20),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildOverviewCard(),
-                const SizedBox(height: 16),
-                _buildLessonsCard(context),
-                const SizedBox(height: 16),
-                _buildXPCard(),
-                const SizedBox(height: 16),
-                _buildPrerequisitesCard(),
-                const SizedBox(height: 40),
-              ]),
-            ),
-          ),
-        ],
+    return AstroBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: AstroTheme.accentCyan,
+                  strokeWidth: 2.4,
+                ),
+              )
+            : _buildBody(),
       ),
     );
   }
 
-  Widget _buildAppBar(BuildContext context) {
+  Widget _buildBody() {
     final categoryColor = _getCategoryColor(chapter.category);
-    
-    return SliverAppBar(
-      expandedHeight: 200,
-      pinned: true,
-      backgroundColor: AstroTheme.scaffoldBackground,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.black26,
-borderRadius: BorderRadius.circular(12),
+    final totalLessons = chapter.lessons.length;
+    final completedLessons =
+        chapter.lessons.where((l) => _isLessonCompleted(l)).length;
+    final isCompleted = _completedChapterIds.contains(chapter.id) ||
+        (totalLessons > 0 && completedLessons >= totalLessons);
+    final ratio = totalLessons == 0 ? 0.0 : completedLessons / totalLessons;
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverAppBar(
+          expandedHeight: 260,
+          pinned: true,
+          backgroundColor:
+              AstroTheme.scaffoldBackground.withValues(alpha: 0.93),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.white, size: 20),
+            onPressed: () => Navigator.pop(context),
           ),
-          child: const Icon(Icons.arrow_back, color: Colors.white),
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                categoryColor.withOpacity(0.3),
-                AstroTheme.scaffoldBackground,
-              ],
+          title: Text(
+            'Module',
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 19,
             ),
           ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 60),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    chapter.icon,
-                    style: const TextStyle(fontSize: 50),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      chapter.title,
-                      style: AstroTheme.headingMedium,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOverviewCard() {
-    return SectionCard(
-      title: 'About This Chapter',
-      icon: Icons.info_outline,
-      accentColor: AstroTheme.accentCyan,
-      child: Text(
-        chapter.description,
-        style: AstroTheme.bodyLarge.copyWith(height: 1.6),
-      ),
-    );
-  }
-
-  Widget _buildLessonsCard(BuildContext context) {
-    return SectionCard(
-      title: 'Lessons',
-      icon: Icons.school_outlined,
-      accentColor: AstroTheme.accentPurple,
-      child: Column(
-        children: chapter.lessons.asMap().entries.map((entry) {
-          final index = entry.key;
-          final lesson = entry.value;
-          final isQuiz = lesson.type == LessonType.quiz;
-          final isCompleted = lesson.quizId != null && 
-              GamificationService().completedLessons.contains(lesson.quizId);
-          
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                   if (isQuiz && lesson.quizId != null) {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(builder: (_) => QuizScreen(quizId: lesson.quizId!)),
-                     ).then((_) {
-                       // Refresh state when coming back from quiz
-                       (context as Element).markNeedsBuild();
-                     });
-                   } else {
-                     // Handle other lesson types (currently just placeholder)
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('This lesson content is under development.')),
-                     );
-                   }
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
+          flexibleSpace: FlexibleSpaceBar(
+            background: Stack(
+              fit: StackFit.expand,
+              children: [
+                Container(
                   decoration: BoxDecoration(
-                    color: isCompleted 
-                        ? AstroTheme.accentPurple.withOpacity(0.05) 
-                        : AstroTheme.accentPurple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isCompleted 
-                          ? AstroTheme.accentGreen.withOpacity(0.5)
-                          : AstroTheme.accentPurple.withOpacity(0.3),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        categoryColor.withValues(alpha: 0.35),
+                        Colors.transparent,
+                      ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          gradient: AstroTheme.primaryGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: isCompleted
-                              ? const Icon(Icons.check, color: Colors.white, size: 24)
-                              : (isQuiz 
-                                  ? const Icon(Icons.quiz, color: Colors.white, size: 20)
-                                  : Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                        color: Colors.white,
-                                      ),
-                                    )),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              lesson.title,
-                              style: AstroTheme.headingSmall.copyWith(fontSize: 16),
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(chapter.icon,
+                                    style: const TextStyle(fontSize: 30)),
+                              ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _getLessonTypeLabel(lesson.type),
-                              style: AstroTheme.bodyMedium.copyWith(
-                                color: AstroTheme.accentPurple,
-                                fontSize: 12,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    chapter.title,
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    chapter.description,
+                                    style: GoogleFonts.quicksand(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.7),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white38,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildXPCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AstroTheme.goldGradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.stars, color: Colors.white, size: 40),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Chapter Reward',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '+${chapter.xpReward} XP',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            _infoChip(
+                              icon: Icons.stars_rounded,
+                              text: '+${chapter.xpReward} XP',
+                              color: AstroTheme.accentGold,
+                            ),
+                            const SizedBox(width: 8),
+                            _infoChip(
+                              icon: isCompleted
+                                  ? Icons.verified_rounded
+                                  : Icons.play_circle_fill_rounded,
+                              text: isCompleted ? 'Completed' : 'In Progress',
+                              color: isCompleted
+                                  ? AstroTheme.accentGreen
+                                  : AstroTheme.accentCyan,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: ratio.clamp(0.0, 1.0),
+                            minHeight: 7,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.15),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isCompleted
+                                  ? AstroTheme.accentGreen
+                                  : AstroTheme.accentCyan,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$completedLessons / $totalLessons lessons completed',
+                          style: GoogleFonts.quicksand(
+                            color: Colors.white.withValues(alpha: 0.68),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _buildSectionLabel('Lesson Plan'),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final lesson = chapter.lessons[index];
+                final isQuiz = lesson.type == LessonType.quiz;
+                final isDone = _isLessonCompleted(lesson);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _buildLessonTile(
+                    lesson: lesson,
+                    index: index,
+                    isQuiz: isQuiz,
+                    isDone: isDone,
+                    accentColor: categoryColor,
+                  ),
+                );
+              },
+              childCount: chapter.lessons.length,
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _buildSectionLabel('Prerequisites'),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
+            child: _buildPrerequisitesCard(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLessonTile({
+    required Lesson lesson,
+    required int index,
+    required bool isQuiz,
+    required bool isDone,
+    required Color accentColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openLesson(lesson),
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AstroTheme.cardBackground.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDone
+                  ? AstroTheme.accentGreen.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.09),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDone
+                      ? AstroTheme.accentGreen.withValues(alpha: 0.2)
+                      : accentColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Center(
+                  child: isDone
+                      ? const Icon(Icons.check_rounded,
+                          color: AstroTheme.accentGreen, size: 20)
+                      : Icon(
+                          isQuiz ? Icons.quiz_rounded : Icons.menu_book_rounded,
+                          color: isQuiz ? AstroTheme.accentGold : accentColor,
+                          size: 19,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      lesson.title,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${index + 1}. ${_lessonTypeLabel(lesson.type)}  ·  +${lesson.xpReward} XP',
+                      style: GoogleFonts.quicksand(
+                        color: Colors.white54,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withValues(alpha: 0.35),
+                size: 14,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildPrerequisitesCard() {
     if (chapter.prerequisites.isEmpty) {
-      return SectionCard(
-        title: 'Prerequisites',
-        icon: Icons.check_circle_outline,
-        accentColor: const Color(0xFF4caf50),
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AstroTheme.cardBackground,
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: AstroTheme.accentGreen.withValues(alpha: 0.4)),
+        ),
         child: Row(
-          children: const [
-            Icon(Icons.celebration, color: Color(0xFF4caf50)),
-            SizedBox(width: 12),
+          children: [
+            const Icon(Icons.check_circle_rounded,
+                color: AstroTheme.accentGreen, size: 20),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'No prerequisites! You can start this chapter right away.',
-                style: TextStyle(color: Color(0xFF4caf50), fontWeight: FontWeight.w600),
+                'No prerequisites required for this module.',
+                style: GoogleFonts.quicksand(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -278,55 +368,127 @@ borderRadius: BorderRadius.circular(12),
       );
     }
 
-    return SectionCard(
-      title: 'Prerequisites',
-      icon: Icons.lock_outline,
-      accentColor: AstroTheme.accentGold,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AstroTheme.cardBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Complete these chapters first:',
-            style: AstroTheme.bodyMedium.copyWith(
-              color: Colors.white70,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ...chapter.prerequisites.map((prereqId) {
-            final prereq = LearningRoadmap.getChapterById(prereqId);
-            if (prereq == null) return const SizedBox.shrink();
-            
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Text(prereq.icon, style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      prereq.title,
-                      style: AstroTheme.bodyLarge,
+        children: chapter.prerequisites.map((id) {
+          final prereq = LearningRoadmap.getChapterById(id);
+          if (prereq == null) return const SizedBox.shrink();
+          final done = _completedChapterIds.contains(id);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  done
+                      ? Icons.check_circle_rounded
+                      : Icons.lock_outline_rounded,
+                  color: done ? AstroTheme.accentGreen : Colors.white38,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(prereq.icon, style: const TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    prereq.title,
+                    style: GoogleFonts.quicksand(
+                      color: done ? Colors.white : Colors.white60,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
-              ),
-            );
-          }),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Text(
+      label.toUpperCase(),
+      style: GoogleFonts.outfit(
+        color: Colors.white60,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  Widget _infoChip({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: GoogleFonts.outfit(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  String _getLessonTypeLabel(LessonType type) {
+  bool _isLessonCompleted(Lesson lesson) {
+    return _completedLessonKeys.contains(_lessonProgressKey(lesson));
+  }
+
+  String _lessonProgressKey(Lesson lesson) => lesson.quizId ?? lesson.id;
+
+  Future<void> _openLesson(Lesson lesson) async {
+    if (lesson.type == LessonType.quiz && lesson.quizId != null) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => QuizScreen(quizId: lesson.quizId!)),
+      );
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LessonDetailScreen(
+            chapter: chapter,
+            lesson: lesson,
+          ),
+        ),
+      );
+    }
+    await _loadProgress();
+  }
+
+  String _lessonTypeLabel(LessonType type) {
     switch (type) {
       case LessonType.reading:
-        return '📖 Reading';
+        return 'Reading';
       case LessonType.interactive:
-        return '🎮 Interactive';
+        return 'Interactive';
       case LessonType.quiz:
-        return '❓ Quiz';
+        return 'Quiz';
       case LessonType.practice:
-        return '✍️ Practice';
+        return 'Practice';
     }
   }
 
@@ -344,6 +506,8 @@ borderRadius: BorderRadius.circular(12),
         return const Color(0xFF4caf50);
       case 'dasha':
         return Colors.orange;
+      case 'diagnostic':
+        return const Color(0xFF00A88A);
       default:
         return AstroTheme.accentPurple;
     }

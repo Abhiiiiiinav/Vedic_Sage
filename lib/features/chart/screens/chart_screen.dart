@@ -15,7 +15,8 @@ import '../../../core/services/free_astrology_api_service.dart';
 import '../../calculator/screens/birth_details_screen.dart';
 import 'chart_gallery_screen.dart';
 import '../../../core/services/chart_api_service.dart' as api;
-import '../../../core/services/svg_chart_extractor.dart';
+import '../../../core/services/svg_chart_extractor.dart' hide SvgChartParser;
+import '../../../core/services/svg_chart_parser.dart';
 
 /// Chart display styles
 enum ChartStyle {
@@ -47,6 +48,9 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
   String? _chartSvg;
   bool _isLoadingSvg = false;
   bool _useSvgChart = false; // Default to Interactive Chart (Local Engine)
+  final Map<String, String?> _svgChartCache = <String, String?>{};
+  final Set<String> _inFlightSvgRequests = <String>{};
+  String? _lastSvgProfileKey;
   
   // API extracted data (stored for reference across the app)
   Map<String, dynamic>? _apiPlanetaryData;
@@ -214,25 +218,87 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
   Future<void> _loadChartSvg() async {
     if (!_session.hasData || _session.birthDetails == null) return;
     
+    final details = _session.birthDetails!;
+    final birthDateTime = details.birthDateTime;
+    final chartKey = _selectedDivisionalChart.code.toLowerCase();
+    final profileKey = _buildSvgProfileKey();
+    final requestKey = '$profileKey|$chartKey';
+
+    if (_lastSvgProfileKey != profileKey) {
+      _svgChartCache.clear();
+      _inFlightSvgRequests.clear();
+      _lastSvgProfileKey = profileKey;
+    }
+
+    final cachedSvg = _svgChartCache[requestKey];
+    if (cachedSvg != null && cachedSvg.isNotEmpty) {
+      setState(() {
+        _chartSvg = cachedSvg;
+        _extractedChartData = _extractFromSvg(
+          cachedSvg,
+          chartCode: _selectedDivisionalChart.code,
+        );
+        _isLoadingSvg = false;
+      });
+      return;
+    }
+
+    final savedDivisionalSvgs =
+        _session.birthChart?['divisionalSvgs'] as Map<String, dynamic>?;
+    final savedSvg = savedDivisionalSvgs?[chartKey];
+    if (savedSvg is String && savedSvg.isNotEmpty) {
+      setState(() {
+        _chartSvg = savedSvg;
+        _svgChartCache[requestKey] = savedSvg;
+        _extractedChartData = _extractFromSvg(
+          savedSvg,
+          chartCode: _selectedDivisionalChart.code,
+        );
+        _isLoadingSvg = false;
+      });
+      return;
+    }
+
+    if (_inFlightSvgRequests.contains(requestKey)) {
+      return;
+    }
+
     setState(() => _isLoadingSvg = true);
+    _inFlightSvgRequests.add(requestKey);
     
     try {
-      final details = _session.birthDetails!;
-      final birthDateTime = details.birthDateTime;
-      
-      final svg = await FreeAstrologyApiService.fetchHoroscopeChartSvg(
-        year: birthDateTime.year,
-        month: birthDateTime.month,
-        date: birthDateTime.day,
-        hours: birthDateTime.hour,
-        minutes: birthDateTime.minute,
-        latitude: details.latitude,
-        longitude: details.longitude,
-        timezone: details.timezoneOffset,
-      );
+      final svg = chartKey == 'd1'
+          ? await FreeAstrologyApiService.fetchHoroscopeChartSvg(
+              year: birthDateTime.year,
+              month: birthDateTime.month,
+              date: birthDateTime.day,
+              hours: birthDateTime.hour,
+              minutes: birthDateTime.minute,
+              latitude: details.latitude,
+              longitude: details.longitude,
+              timezone: details.timezoneOffset,
+            )
+          : await FreeAstrologyApiService.fetchDivisionalChartSvg(
+              chartType: chartKey,
+              year: birthDateTime.year,
+              month: birthDateTime.month,
+              date: birthDateTime.day,
+              hours: birthDateTime.hour,
+              minutes: birthDateTime.minute,
+              latitude: details.latitude,
+              longitude: details.longitude,
+              timezone: details.timezoneOffset,
+            );
       
       setState(() {
         _chartSvg = svg;
+        if (svg != null && svg.isNotEmpty) {
+          _svgChartCache[requestKey] = svg;
+          _extractedChartData = _extractFromSvg(
+            svg,
+            chartCode: _selectedDivisionalChart.code,
+          );
+        }
         _isLoadingSvg = false;
       });
     } catch (e) {
@@ -241,7 +307,92 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
         _isLoadingSvg = false;
         _useSvgChart = false; // Fall back to interactive chart
       });
+    } finally {
+      _inFlightSvgRequests.remove(requestKey);
     }
+  }
+
+  String _buildSvgProfileKey() {
+    final details = _session.birthDetails!;
+    final dt = details.birthDateTime;
+    return [
+      dt.year,
+      dt.month,
+      dt.day,
+      dt.hour,
+      dt.minute,
+      details.latitude.toStringAsFixed(6),
+      details.longitude.toStringAsFixed(6),
+      details.timezoneOffset.toStringAsFixed(2),
+    ].join('|');
+  }
+
+  /// Parse SVG chart and convert it to ExtractedChartData used by the dialog UI.
+  /// If API planet JSON is available, enrich the SVG extraction with degree/nakshatra.
+  ExtractedChartData _extractFromSvg(String svg, {String chartCode = 'D1'}) {
+    final parsed = SvgChartParser.extractPositions(svg);
+    final fallbackAsc =
+        ((_session.birthChart?['ascSignIndex'] as int?) ?? 0) + 1;
+    final ascSign = parsed.ascendantSign > 0 ? parsed.ascendantSign : fallbackAsc;
+    final ascSignName = SvgChartParser.getSignName(ascSign);
+
+    final housePlanets = <int, List<String>>{
+      for (int i = 1; i <= 12; i++) i: <String>[],
+    };
+
+    final planets = <ExtractedPlanet>[];
+    parsed.planetSigns.forEach((abbr, signNumber) {
+      final name = SvgChartParser.getPlanetName(abbr);
+      final houseNumber = SvgChartParser.signToHouse(signNumber, ascSign);
+      housePlanets[houseNumber]!.add(abbr);
+
+      final api = _apiPlanetaryData?[name] as Map<String, dynamic>?;
+      final fullDegreeRaw =
+          api?['fullDegree'] ?? api?['full_degree'] ?? api?['longitude'] ?? 0.0;
+      final signDegreeRaw =
+          api?['normDegree'] ?? api?['sign_degree'] ?? api?['norm_degree'] ?? 0.0;
+      final fullDegree = (fullDegreeRaw as num).toDouble();
+      final signDegree = (signDegreeRaw as num).toDouble();
+
+      String? nakshatra = api?['nakshatra'] ?? api?['nakshatra_name'];
+      int? nakshatraPada = api?['nakshatra_pada'] ?? api?['nakshatra_quarter'];
+      if ((nakshatra == null || nakshatra.isEmpty) && fullDegree > 0) {
+        final nk = SvgChartParser.calculateNakshatra(fullDegree);
+        nakshatra = nk.nakshatra;
+        nakshatraPada = nk.pada;
+      }
+
+      planets.add(
+        ExtractedPlanet(
+          name: name,
+          abbreviation: abbr,
+          sign: SvgChartParser.getSignName(signNumber),
+          signNumber: signNumber,
+          houseNumber: houseNumber,
+          fullDegree: fullDegree,
+          signDegree: signDegree,
+          isRetrograde: (api?['isRetro'] ?? api?['is_retro'] ?? false) as bool,
+          nakshatra: nakshatra,
+          nakshatraPada: nakshatraPada,
+          nakshatraLord: api?['nakshatra_lord'],
+        ),
+      );
+    });
+
+    planets.sort((a, b) {
+      final houseCmp = a.houseNumber.compareTo(b.houseNumber);
+      if (houseCmp != 0) return houseCmp;
+      return a.name.compareTo(b.name);
+    });
+
+    return ExtractedChartData(
+      chartType: chartCode,
+      ascendantSign: ascSign,
+      ascendantSignName: ascSignName,
+      planets: planets,
+      housePlanets: housePlanets,
+      extractedAt: DateTime.now(),
+    );
   }
   
   @override
@@ -367,7 +518,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             Row(
               children: [
                 // API data status indicator
-                if (_apiPlanetaryData != null)
+                if (_apiPlanetaryData != null || _extractedChartData != null)
                   _buildApiDataIndicator(),
                 _buildChartVisibilityToggle(),
               ],
@@ -414,9 +565,13 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
   Widget _buildDivisionalChartSelector() {
     return PopupMenuButton<api.DivisionalChart>(
       onSelected: (chart) {
+        if (chart == _selectedDivisionalChart) return;
         setState(() {
           _selectedDivisionalChart = chart;
         });
+        if (_selectedChartStyle == ChartStyle.southApi) {
+          _loadChartSvg();
+        }
       },
       itemBuilder: (context) => [
         _buildDivisionalMenuItem(api.DivisionalChart.d1),

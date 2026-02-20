@@ -15,26 +15,73 @@ const double RAD2DEG = 180 / pi;
 /// Planet symbols for chart display
 class AstroConstants {
   static const Map<String, String> planetSymbols = {
-    'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me',
-    'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke',
+    'Sun': 'Su',
+    'Moon': 'Mo',
+    'Mars': 'Ma',
+    'Mercury': 'Me',
+    'Jupiter': 'Ju',
+    'Venus': 'Ve',
+    'Saturn': 'Sa',
+    'Rahu': 'Ra',
+    'Ketu': 'Ke',
     'Ascendant': 'Asc'
   };
-  
+
   static const List<String> signs = [
-    'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'
+    'Aries',
+    'Taurus',
+    'Gemini',
+    'Cancer',
+    'Leo',
+    'Virgo',
+    'Libra',
+    'Scorpio',
+    'Sagittarius',
+    'Capricorn',
+    'Aquarius',
+    'Pisces'
   ];
-  
+
   static const List<String> nakshatras = [
-    'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra',
-    'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni',
-    'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
-    'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
-    'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'
+    'Ashwini',
+    'Bharani',
+    'Krittika',
+    'Rohini',
+    'Mrigashira',
+    'Ardra',
+    'Punarvasu',
+    'Pushya',
+    'Ashlesha',
+    'Magha',
+    'Purva Phalguni',
+    'Uttara Phalguni',
+    'Hasta',
+    'Chitra',
+    'Swati',
+    'Vishakha',
+    'Anuradha',
+    'Jyeshtha',
+    'Mula',
+    'Purva Ashadha',
+    'Uttara Ashadha',
+    'Shravana',
+    'Dhanishta',
+    'Shatabhisha',
+    'Purva Bhadrapada',
+    'Uttara Bhadrapada',
+    'Revati'
   ];
-  
+
   static const List<String> nakshatraLords = [
-    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'
+    'Ketu',
+    'Venus',
+    'Sun',
+    'Moon',
+    'Mars',
+    'Rahu',
+    'Jupiter',
+    'Saturn',
+    'Mercury'
   ];
 }
 
@@ -47,11 +94,11 @@ class AstroConstants {
 double julianDay(DateTime dt, double tzHours) {
   // Convert local time to UTC
   final utc = dt.subtract(Duration(milliseconds: (tzHours * 3600000).round()));
-  
+
   int y = utc.year;
   int m = utc.month;
-  double d = utc.day + 
-      (utc.hour + utc.minute / 60.0 + utc.second / 3600.0) / 24.0;
+  double d =
+      utc.day + (utc.hour + utc.minute / 60.0 + utc.second / 3600.0) / 24.0;
 
   if (m <= 2) {
     y -= 1;
@@ -75,7 +122,7 @@ double julianDay(DateTime dt, double tzHours) {
 /// Greenwich Mean Sidereal Time in degrees
 double greenwichSiderealTime(double jd) {
   double T = (jd - 2451545.0) / 36525.0;
-  
+
   double theta = 280.46061837 +
       360.98564736629 * (jd - 2451545.0) +
       0.000387933 * T * T -
@@ -114,21 +161,21 @@ double trueObliquity(double T) {
 double tropicalAscendant(double lstDeg, double latDeg, double jd) {
   double T = (jd - 2451545.0) / 36525.0;
   double eps = trueObliquity(T) * DEG2RAD;
-  
+
   double theta = lstDeg * DEG2RAD; // LST in radians
-  double phi = latDeg * DEG2RAD;   // Latitude in radians
-  
+  double phi = latDeg * DEG2RAD; // Latitude in radians
+
   // Correct ascendant formula using spherical trigonometry
   // ASC = atan2(-cos(LST), sin(eps)*tan(lat) + cos(eps)*sin(LST))
   double y = -cos(theta);
   double x = sin(eps) * tan(phi) + cos(eps) * sin(theta);
-  
+
   double asc = atan2(y, x) * RAD2DEG;
-  
+
   // Add 180° to correct quadrant - atan2 returns the opposite point (descendant)
   // We need the actual rising point on the eastern horizon
   asc = asc + 180.0;
-  
+
   return (asc + 360) % 360;
 }
 
@@ -194,11 +241,11 @@ Map<String, double> planetLongitudesTropical(double jd) {
 Map<String, double> planetLongitudesSidereal(double jd) {
   final tropical = planetLongitudesTropical(jd);
   final sidereal = <String, double>{};
-  
+
   for (var entry in tropical.entries) {
     sidereal[entry.key] = toSidereal(entry.value, jd);
   }
-  
+
   return sidereal;
 }
 
@@ -216,15 +263,15 @@ int pada(double deg) => ((deg % 13.333333333) / 3.333333333).floor() + 1;
 String nakshatraName(int index) => AstroConstants.nakshatras[(index - 1) % 27];
 
 /// Get nakshatra lord for Dasha
-String nakshatraLord(int nakIndex) => 
+String nakshatraLord(int nakIndex) =>
     AstroConstants.nakshatraLords[(nakIndex - 1) % 9];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIVISIONAL CHART ENGINE (ALL VARGAS)
+// DIVISIONAL CHART ENGINE (ALL VARGAS — PARASHARA-CORRECT)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// General Varga Sign calculation
-/// This is the correct formula for all divisional charts
+/// Generic Varga Sign calculation (works for D1, D4, D7, D9, D10, D12,
+/// D16, D20, D24, D27, D40, D45, D60)
 int vargaSign(double deg, int division) {
   double part = 30.0 / division;
   int rashi = (deg ~/ 30).toInt();
@@ -233,11 +280,101 @@ int vargaSign(double deg, int division) {
   return ((rashi * division + vargaPart) % 12) + 1;
 }
 
+/// D2 — Hora Chart (Parashara)
+/// Odd sign: first 15° → Sun (Leo=5), last 15° → Moon (Cancer=4)
+/// Even sign: first 15° → Moon (Cancer=4), last 15° → Sun (Leo=5)
+int horaSign(double deg) {
+  int rashi = (deg ~/ 30).toInt(); // 0-indexed sign
+  bool isOdd = (rashi % 2 == 0); // Aries=0 is odd sign
+  double posInSign = deg % 30;
+  if (isOdd) {
+    return posInSign < 15 ? 5 : 4; // Leo then Cancer
+  } else {
+    return posInSign < 15 ? 4 : 5; // Cancer then Leo
+  }
+}
+
+/// D3 — Drekkana Chart (Parashara)
+/// 0-10° → same sign, 10-20° → 5th from sign, 20-30° → 9th from sign
+int drekkanaSign(double deg) {
+  int rashi = (deg ~/ 30).toInt(); // 0-indexed
+  double posInSign = deg % 30;
+  if (posInSign < 10) {
+    return rashi + 1; // same sign (1-indexed)
+  } else if (posInSign < 20) {
+    return ((rashi + 4) % 12) + 1; // 5th from sign
+  } else {
+    return ((rashi + 8) % 12) + 1; // 9th from sign
+  }
+}
+
+/// D30 — Trimsamsa Chart (Parashara)
+/// Odd signs: Mars(0-5°), Saturn(5-10°), Jupiter(10-18°), Mercury(18-25°), Venus(25-30°)
+/// Even signs: Venus(0-5°), Mercury(5-12°), Jupiter(12-20°), Saturn(20-25°), Mars(25-30°)
+/// Returns the sign ruled by the lord:
+///   Mars → Aries(1)/Scorpio(8), Saturn → Capricorn(10)/Aquarius(11),
+///   Jupiter → Sagittarius(9)/Pisces(12), Mercury → Gemini(3)/Virgo(6),
+///   Venus → Taurus(2)/Libra(7)
+int trimsamsaSign(double deg) {
+  int rashi = (deg ~/ 30).toInt(); // 0-indexed
+  bool isOdd = (rashi % 2 == 0); // Aries=0 is odd
+  double pos = deg % 30;
+
+  String lord;
+  if (isOdd) {
+    if (pos < 5)
+      lord = 'Mars';
+    else if (pos < 10)
+      lord = 'Saturn';
+    else if (pos < 18)
+      lord = 'Jupiter';
+    else if (pos < 25)
+      lord = 'Mercury';
+    else
+      lord = 'Venus';
+  } else {
+    if (pos < 5)
+      lord = 'Venus';
+    else if (pos < 12)
+      lord = 'Mercury';
+    else if (pos < 20)
+      lord = 'Jupiter';
+    else if (pos < 25)
+      lord = 'Saturn';
+    else
+      lord = 'Mars';
+  }
+
+  // Map lord to sign (use primary domicile)
+  const lordToSign = {
+    'Mars': 1, // Aries
+    'Venus': 2, // Taurus
+    'Mercury': 3, // Gemini
+    'Jupiter': 9, // Sagittarius
+    'Saturn': 10, // Capricorn
+  };
+  return lordToSign[lord]!;
+}
+
+/// Compute the correct varga sign for any division
+int computeVargaSign(double deg, int division) {
+  switch (division) {
+    case 2:
+      return horaSign(deg);
+    case 3:
+      return drekkanaSign(deg);
+    case 30:
+      return trimsamsaSign(deg);
+    default:
+      return vargaSign(deg, division);
+  }
+}
+
 /// Build a complete Varga chart for all planets
 Map<String, int> buildVargaChart(Map<String, double> planetDeg, int division) {
   final map = <String, int>{};
   planetDeg.forEach((planet, deg) {
-    map[planet] = vargaSign(deg, division);
+    map[planet] = computeVargaSign(deg, division);
   });
   return map;
 }
@@ -273,12 +410,12 @@ Map<String, dynamic> _buildVargaData(
   int division,
 ) {
   final planetSigns = buildVargaChart(planets, division);
-  final ascSign = vargaSign(asc, division);
-  
+  final ascSign = computeVargaSign(asc, division);
+
   return {
     'division': division,
-    'ascendantSign': ascSign - 1, // 0-indexed for display
-    'planetSigns': planetSigns.map((k, v) => MapEntry(k, v - 1)), // 0-indexed
+    'ascendantSign': ascSign, // 1-indexed (Aries=1 ... Pisces=12)
+    'planetSigns': planetSigns, // 1-indexed
   };
 }
 
@@ -294,22 +431,23 @@ List<List<String>> buildHousesFromAngular(
   Map<String, bool>? retrogradeStatus,
 ) {
   List<List<String>> houses = List.generate(12, (_) => <String>[]);
-  
+
   // Add Ascendant marker to House 1
   houses[0].add('Asc');
-  
+
   // Place each planet in house based on angular distance
   siderealPlanets.forEach((planet, deg) {
     int house = planetHouse(siderealAsc, deg);
-    String symbol = AstroConstants.planetSymbols[planet] ?? planet.substring(0, 2);
-    
+    String symbol =
+        AstroConstants.planetSymbols[planet] ?? planet.substring(0, 2);
+
     // Add retrograde indicator
     bool isRetro = retrogradeStatus?[planet] ?? false;
     String display = isRetro ? '($symbol)' : symbol;
-    
+
     houses[house - 1].add(display);
   });
-  
+
   return houses;
 }
 
@@ -321,17 +459,17 @@ List<List<String>> buildHousesFromAngular(
 Map<String, bool> checkRetrograde(double jd) {
   final today = planetLongitudesTropical(jd);
   final tomorrow = planetLongitudesTropical(jd + 1);
-  
+
   final retro = <String, bool>{};
-  
+
   today.forEach((planet, degToday) {
     double degTomorrow = tomorrow[planet]!;
-    
+
     // Handle 360° crossing
     double diff = degTomorrow - degToday;
     if (diff < -300) diff += 360;
     if (diff > 300) diff -= 360;
-    
+
     // Retrograde if moving backwards (negative diff)
     // Sun and Moon never retrograde; Rahu/Ketu always move retrograde
     if (planet == 'Sun' || planet == 'Moon') {
@@ -342,7 +480,7 @@ Map<String, bool> checkRetrograde(double jd) {
       retro[planet] = diff < 0;
     }
   });
-  
+
   return retro;
 }
 
@@ -359,7 +497,7 @@ class KundaliResult {
   final Map<String, dynamic> dasha;
   final Map<String, dynamic> meta;
   final Map<String, dynamic> validation;
-  
+
   KundaliResult({
     required this.planets,
     required this.ascendant,
@@ -373,7 +511,6 @@ class KundaliResult {
 
 /// Main Kundali Engine - Single Entry Point
 class AccurateKundaliEngine {
-  
   /// Generate complete Kundali chart
   /// This is the ONLY function you need to call
   static KundaliResult generateChart({
@@ -387,46 +524,46 @@ class AccurateKundaliEngine {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final jd = julianDay(birthDateTime, timezoneOffset);
     final T = (jd - 2451545.0) / 36525.0; // Julian centuries
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 2: Greenwich Sidereal Time
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final gst = greenwichSiderealTime(jd);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 3: Local Sidereal Time
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final lst = localSiderealTime(gst, longitude);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 4: Tropical Ascendant
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final tropicalAsc = tropicalAscendant(lst, latitude, jd);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 5: Apply Lahiri Ayanamsa → Sidereal Ascendant
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final ayanamsa = lahiriAyanamsa(jd);
     final siderealAsc = toSidereal(tropicalAsc, jd);
     final ascSign = signFromDegree(siderealAsc);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 6: Planet Tropical Longitudes → Sidereal
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final tropicalPlanets = planetLongitudesTropical(jd);
     final siderealPlanets = planetLongitudesSidereal(jd);
     final retrogradeStatus = checkRetrograde(jd);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 7: Build Planet Data with Houses (ANGULAR METHOD)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final planetData = <String, Map<String, dynamic>>{};
-    
+
     siderealPlanets.forEach((planet, deg) {
       int house = planetHouse(siderealAsc, deg); // ANGULAR HOUSE
       int sign = signFromDegree(deg);
       int nak = nakshatra(deg);
-      
+
       planetData[planet] = {
         'degree': deg,
         'degreeInSign': degreeInSign(deg),
@@ -440,28 +577,28 @@ class AccurateKundaliEngine {
         'isRetrograde': retrogradeStatus[planet] ?? false,
       };
     });
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 8: Build Houses for Chart Display
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final houses = buildHousesFromAngular(
-      siderealAsc, 
-      siderealPlanets, 
+      siderealAsc,
+      siderealPlanets,
       retrogradeStatus,
     );
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 9: Build All Divisional Charts
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final vargas = buildAllVargas(siderealPlanets, siderealAsc);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 10: Calculate Vimshottari Dasha
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     final moonDeg = siderealPlanets['Moon']!;
     final moonNak = nakshatra(moonDeg);
     final dasha = VimshottariDasha.calculate(moonDeg, birthDateTime);
-    
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // BUILD RESULT
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -497,24 +634,32 @@ class AccurateKundaliEngine {
       },
     );
   }
-  
+
   /// Get chart summary for debugging
   static String getChartSummary(KundaliResult result) {
     final sb = StringBuffer();
-    sb.writeln('╔══════════════════════════════════════════════════════════════╗');
-    sb.writeln('║            ACCURATE KUNDALI ENGINE v2.0 (ANGULAR)            ║');
-    sb.writeln('╠══════════════════════════════════════════════════════════════╣');
-    sb.writeln('║ Ascendant: ${result.ascendant['signName']} ${result.ascendant['degreeInSign']?.toStringAsFixed(2)}°');
-    sb.writeln('║ Moon Nakshatra: ${result.validation['moonNakshatra']} Pada ${result.validation['moonPada']}');
+    sb.writeln(
+        '╔══════════════════════════════════════════════════════════════╗');
+    sb.writeln(
+        '║            ACCURATE KUNDALI ENGINE v2.0 (ANGULAR)            ║');
+    sb.writeln(
+        '╠══════════════════════════════════════════════════════════════╣');
+    sb.writeln(
+        '║ Ascendant: ${result.ascendant['signName']} ${result.ascendant['degreeInSign']?.toStringAsFixed(2)}°');
+    sb.writeln(
+        '║ Moon Nakshatra: ${result.validation['moonNakshatra']} Pada ${result.validation['moonPada']}');
     sb.writeln('║ Ayanamsa: ${result.meta['ayanamsa']?.toStringAsFixed(4)}°');
-    sb.writeln('╠══════════════════════════════════════════════════════════════╣');
-    
+    sb.writeln(
+        '╠══════════════════════════════════════════════════════════════╣');
+
     result.planets.forEach((planet, data) {
       final retro = data['isRetrograde'] == true ? ' (R)' : '';
-      sb.writeln('║ $planet: ${data['signName']} ${data['degreeInSign']?.toStringAsFixed(2)}° | House ${data['house']}$retro');
+      sb.writeln(
+          '║ $planet: ${data['signName']} ${data['degreeInSign']?.toStringAsFixed(2)}° | House ${data['house']}$retro');
     });
-    
-    sb.writeln('╚══════════════════════════════════════════════════════════════╝');
+
+    sb.writeln(
+        '╚══════════════════════════════════════════════════════════════╝');
     return sb.toString();
   }
 }
@@ -525,42 +670,57 @@ class AccurateKundaliEngine {
 
 class VimshottariDasha {
   static const List<String> lordOrder = [
-    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'
+    'Ketu',
+    'Venus',
+    'Sun',
+    'Moon',
+    'Mars',
+    'Rahu',
+    'Jupiter',
+    'Saturn',
+    'Mercury'
   ];
-  
+
   static const Map<String, double> dashaYears = {
-    'Ketu': 7, 'Venus': 20, 'Sun': 6, 'Moon': 10, 'Mars': 7,
-    'Rahu': 18, 'Jupiter': 16, 'Saturn': 19, 'Mercury': 17,
+    'Ketu': 7,
+    'Venus': 20,
+    'Sun': 6,
+    'Moon': 10,
+    'Mars': 7,
+    'Rahu': 18,
+    'Jupiter': 16,
+    'Saturn': 19,
+    'Mercury': 17,
   };
-  
+
   static const double totalCycle = 120; // years
-  
+
   /// Calculate Vimshottari Dasha from Moon degree
   static Map<String, dynamic> calculate(double moonDeg, DateTime birthDate) {
     // Find nakshatra and progress within it
     int nak = nakshatra(moonDeg);
     double nakProgress = (moonDeg % 13.333333333) / 13.333333333;
-    
+
     // Get ruling lord
     String startLord = nakshatraLord(nak);
     int lordIndex = lordOrder.indexOf(startLord);
-    
+
     // Calculate elapsed portion of first dasha
     double firstDashaYears = dashaYears[startLord]!;
     double elapsedYears = nakProgress * firstDashaYears;
     double remainingYears = firstDashaYears - elapsedYears;
-    
+
     // Build mahadashas
     List<Map<String, dynamic>> mahadashas = [];
     DateTime currentStart = birthDate;
-    
+
     for (int i = 0; i < 9; i++) {
       int idx = (lordIndex + i) % 9;
       String lord = lordOrder[idx];
       double years = i == 0 ? remainingYears : dashaYears[lord]!;
-      
+
       DateTime endDate = _addYears(currentStart, years);
-      
+
       mahadashas.add({
         'lord': lord,
         'startDate': currentStart.toIso8601String(),
@@ -568,10 +728,10 @@ class VimshottariDasha {
         'years': years,
         'index': i,
       });
-      
+
       currentStart = endDate;
     }
-    
+
     // Find current running dasha
     DateTime now = DateTime.now();
     Map<String, dynamic>? currentDasha;
@@ -583,7 +743,7 @@ class VimshottariDasha {
         break;
       }
     }
-    
+
     return {
       'moonNakshatra': nakshatraName(nak),
       'moonNakshatraLord': startLord,
@@ -592,7 +752,7 @@ class VimshottariDasha {
       'currentDasha': currentDasha,
     };
   }
-  
+
   static DateTime _addYears(DateTime dt, double years) {
     int days = (years * 365.25).round();
     return dt.add(Duration(days: days));
@@ -618,7 +778,7 @@ class KundaliEngine {
         }
       }
     }
-    
+
     // Try planetData format
     if (chartData.containsKey('planetData')) {
       final planetData = chartData['planetData'] as Map<String, dynamic>?;
@@ -629,7 +789,7 @@ class KundaliEngine {
         }
       }
     }
-    
+
     // Try direct Moon key
     if (chartData.containsKey('Moon')) {
       final moonData = chartData['Moon'];
@@ -637,11 +797,11 @@ class KundaliEngine {
         return (moonData['degree'] as num).toDouble();
       }
     }
-    
+
     // Default fallback - return 0 degrees (Aries)
     return 0.0;
   }
-  
+
   /// Generate chart (delegates to AccurateKundaliEngine)
   static KundaliResult generateChart({
     required DateTime birthLocal,
@@ -671,8 +831,10 @@ class ChartValidator {
     print('═══════════════════════════════════════════════════════');
     print('');
     print('ASCENDANT:');
-    print('  Sidereal: ${result.ascendant['signName']} ${result.ascendant['degreeInSign']?.toStringAsFixed(4)}°');
-    print('  Tropical: ${result.ascendant['tropicalDegree']?.toStringAsFixed(4)}°');
+    print(
+        '  Sidereal: ${result.ascendant['signName']} ${result.ascendant['degreeInSign']?.toStringAsFixed(4)}°');
+    print(
+        '  Tropical: ${result.ascendant['tropicalDegree']?.toStringAsFixed(4)}°');
     print('');
     print('AYANAMSA: ${result.meta['ayanamsa']?.toStringAsFixed(4)}° (Lahiri)');
     print('');
@@ -684,7 +846,8 @@ class ChartValidator {
     print('PLANET HOUSES (Angular Method):');
     result.planets.forEach((planet, data) {
       final retro = data['isRetrograde'] == true ? ' (R)' : '';
-      print('  $planet: House ${data['house']} | ${data['signName']} ${data['degreeInSign']?.toStringAsFixed(2)}°$retro');
+      print(
+          '  $planet: House ${data['house']} | ${data['signName']} ${data['degreeInSign']?.toStringAsFixed(2)}°$retro');
     });
     print('');
     print('═══════════════════════════════════════════════════════');

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/animated_cosmic_background.dart';
 import '../../../core/services/user_session.dart';
-import '../widgets/interactive_kundali_chart.dart';
-import '../../../core/astro/accurate_kundali_engine.dart';
+import '../../../core/services/chart_api_service.dart' as api;
 
-/// Screen to display all generated chart images using Local Engine
+import '../widgets/svg_chart_viewer.dart';
+
+/// ─── Chart Gallery ───
+/// Shows all 16 Parashara divisional charts in a scrollable grid.
+/// Tapping any card opens a full-screen detail view with the rendered chart.
 class ChartGalleryScreen extends StatefulWidget {
   const ChartGalleryScreen({super.key});
 
@@ -13,96 +18,148 @@ class ChartGalleryScreen extends StatefulWidget {
   State<ChartGalleryScreen> createState() => _ChartGalleryScreenState();
 }
 
-class _ChartGalleryScreenState extends State<ChartGalleryScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ChartGalleryScreenState extends State<ChartGalleryScreen> {
   bool _isLoading = true;
   String? _errorMessage;
-  String _selectedChart = 'rasi';
 
-  // Chart metadata - Added D3
-  static const Map<String, ChartInfo> _chartInfo = {
-    'rasi': ChartInfo(
-      name: 'Rasi (D1)',
-      fullName: 'Birth Chart / Lagna Kundali',
-      description: 'Primary chart showing planetary positions at birth. Foundation of all analysis.',
-      icon: '🌟',
-    ),
-    'd3': ChartInfo(
-      name: 'Drekkana (D3)',
-      fullName: 'Third Divisional Chart',
-      description: 'Siblings and courage. Shows co-borns and mental strength.',
-      icon: '👥',
-    ),
-    'd5': ChartInfo(
-      name: 'Saptamsa (D7)', // Renamed to actual D7
-      fullName: 'Seventh Divisional Chart',
-      description: 'Reveals potential for children, creativity, and intelligence.',
-      icon: '👶',
-    ),
-    'd9': ChartInfo(
-      name: 'Navamsa (D9)',
-      fullName: 'Ninth Divisional Chart',
-      description: 'Most important divisional chart. Shows marriage, destiny, and soul purpose.',
-      icon: '💕',
-    ),
-    'd10': ChartInfo(
-      name: 'Dasamsa (D10)',
-      fullName: 'Tenth Divisional Chart',
-      description: 'Career and profession chart. Shows professional success and karma yoga.',
-      icon: '💼',
-    ),
-    'd12': ChartInfo(
-      name: 'Dwadasamsa (D12)',
-      fullName: 'Twelfth Divisional Chart',
-      description: 'Parents and ancestral lineage. Shows karma inherited from parents.',
-      icon: '👨‍👩‍👧',
-    ),
-    'd16': ChartInfo(
-      name: 'Shodasamsa (D16)',
-      fullName: 'Sixteenth Divisional Chart',
-      description: 'Vehicles, comforts, and luxuries. Shows material happiness.',
-      icon: '🚗',
-    ),
-  };
+  // ─── Chart Metadata ───
+  static const List<ChartInfo> _charts = [
+    ChartInfo(
+        key: 'd1',
+        name: 'D1',
+        fullName: 'Rasi',
+        desc: 'Birth chart — foundation of all analysis',
+        icon: '🌟',
+        color: Color(0xFF667eea)),
+    ChartInfo(
+        key: 'd2',
+        name: 'D2',
+        fullName: 'Hora',
+        desc: 'Wealth & financial prosperity',
+        icon: '💰',
+        color: Color(0xFFf5a623)),
+    ChartInfo(
+        key: 'd3',
+        name: 'D3',
+        fullName: 'Drekkana',
+        desc: 'Siblings, courage & initiative',
+        icon: '👥',
+        color: Color(0xFF00d4ff)),
+    ChartInfo(
+        key: 'd4',
+        name: 'D4',
+        fullName: 'Chaturthamsa',
+        desc: 'Property & fixed assets',
+        icon: '🏠',
+        color: Color(0xFF34c759)),
+    ChartInfo(
+        key: 'd7',
+        name: 'D7',
+        fullName: 'Saptamsa',
+        desc: 'Children & creativity',
+        icon: '👶',
+        color: Color(0xFFff6b9d)),
+    ChartInfo(
+        key: 'd9',
+        name: 'D9',
+        fullName: 'Navamsa',
+        desc: 'Marriage, destiny & dharma',
+        icon: '💕',
+        color: Color(0xFFe91e63)),
+    ChartInfo(
+        key: 'd10',
+        name: 'D10',
+        fullName: 'Dasamsa',
+        desc: 'Career & professional karma',
+        icon: '💼',
+        color: Color(0xFF7B61FF)),
+    ChartInfo(
+        key: 'd12',
+        name: 'D12',
+        fullName: 'Dwadasamsa',
+        desc: 'Parents & ancestral lineage',
+        icon: '👨‍👩‍👧',
+        color: Color(0xFF5856d6)),
+    ChartInfo(
+        key: 'd16',
+        name: 'D16',
+        fullName: 'Shodasamsa',
+        desc: 'Vehicles & comforts',
+        icon: '🚗',
+        color: Color(0xFF8e99a4)),
+    ChartInfo(
+        key: 'd20',
+        name: 'D20',
+        fullName: 'Vimsamsa',
+        desc: 'Spiritual progress & upasana',
+        icon: '🙏',
+        color: Color(0xFF0d9488)),
+    ChartInfo(
+        key: 'd24',
+        name: 'D24',
+        fullName: 'Siddhamsa',
+        desc: 'Education & learning',
+        icon: '📚',
+        color: Color(0xFF2196f3)),
+    ChartInfo(
+        key: 'd27',
+        name: 'D27',
+        fullName: 'Nakshatramsa',
+        desc: 'Strengths & vitality',
+        icon: '⭐',
+        color: Color(0xFFffcc00)),
+    ChartInfo(
+        key: 'd30',
+        name: 'D30',
+        fullName: 'Trimsamsa',
+        desc: 'Misfortunes & challenges',
+        icon: '🛡️',
+        color: Color(0xFFff3b30)),
+    ChartInfo(
+        key: 'd40',
+        name: 'D40',
+        fullName: 'Khavedamsa',
+        desc: 'Auspicious effects',
+        icon: '☯️',
+        color: Color(0xFF9c27b0)),
+    ChartInfo(
+        key: 'd45',
+        name: 'D45',
+        fullName: 'Akshavedamsa',
+        desc: 'Paternal legacy',
+        icon: '🧬',
+        color: Color(0xFF795548)),
+    ChartInfo(
+        key: 'd60',
+        name: 'D60',
+        fullName: 'Shashtyamsa',
+        desc: 'Past life karma',
+        icon: '♾️',
+        color: Color(0xFF607d8b)),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
     _loadCharts();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadCharts() async {
-    // Data is already pre-calculated in UserSession by ChartLoaderScreen
-    // Just verify session exists
     final session = UserSession();
-    
     if (!session.hasData) {
       setState(() {
         _isLoading = false;
-        _errorMessage = "No chart data found. please recalculate.";
+        _errorMessage = 'No chart data found. Please recalculate.';
       });
       return;
     }
-    
-    // Simulate brief load for UX
     await Future.delayed(const Duration(milliseconds: 300));
-    
-    if (mounted) {
+    if (mounted)
       setState(() {
         _isLoading = false;
         _errorMessage = null;
       });
-    }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -113,13 +170,12 @@ class _ChartGalleryScreenState extends State<ChartGalleryScreen>
           child: Column(
             children: [
               _buildHeader(),
-              _buildTabBar(),
               Expanded(
                 child: _isLoading
                     ? _buildLoadingState()
                     : _errorMessage != null
                         ? _buildErrorState()
-                        : _buildChartTabView(),
+                        : _buildChartGrid(),
               ),
             ],
           ),
@@ -128,83 +184,101 @@ class _ChartGalleryScreenState extends State<ChartGalleryScreen>
     );
   }
 
+  // ─── Header ───
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            icon:
+                const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
           ),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Chart Gallery',
-                  style: TextStyle(
+                  'Divisional Charts',
+                  style: GoogleFonts.outfit(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  'Explore all divisional charts',
-                  style: TextStyle(color: Colors.white60, fontSize: 14),
+                  '16 Parashara Vargas',
+                  style: GoogleFonts.quicksand(
+                    fontSize: 13,
+                    color: Colors.white54,
+                  ),
                 ),
               ],
             ),
           ),
           IconButton(
             onPressed: _loadCharts,
-            icon: const Icon(Icons.refresh, color: AstroTheme.accentGold),
-            tooltip: 'Refresh Charts',
+            icon: const Icon(Icons.refresh,
+                color: AstroTheme.accentGold, size: 22),
+            tooltip: 'Refresh',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTabBar() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+  // ─── Chart Grid ───
+  Widget _buildChartGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      physics: const BouncingScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.0,
       ),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        indicatorColor: AstroTheme.accentGold,
-        indicatorWeight: 3,
-        labelColor: AstroTheme.accentGold,
-        unselectedLabelColor: Colors.white60,
-        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        tabs: _chartInfo.entries.map((entry) {
-          return Tab(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(entry.value.icon),
-                  const SizedBox(width: 4),
-                  Text(entry.value.name),
-                ],
-              ),
-            ),
+      itemCount: _charts.length,
+      itemBuilder: (context, index) {
+        final chart = _charts[index];
+        return _ChartCard(
+          chart: chart,
+          hasData: _hasChartData(chart.key),
+          onTap: () => _openChartDetail(chart),
+        );
+      },
+    );
+  }
+
+  bool _hasChartData(String chartKey) {
+    final session = UserSession();
+    // Check saved SVG
+    final svgs = session.birthChart?['divisionalSvgs'] as Map<String, dynamic>?;
+    if (svgs?[chartKey.toLowerCase()] != null) return true;
+    // Check local varga
+    final vargas = session.birthChart?['vargas'] as Map<String, dynamic>?;
+    final vargaKey = chartKey.toLowerCase().replaceFirst('d', 'D');
+    return vargas?[vargaKey] is Map;
+  }
+
+  void _openChartDetail(ChartInfo chart) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => _ChartDetailScreen(chart: chart),
+        transitionsBuilder: (_, anim, __, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+            child: child,
           );
-        }).toList(),
-        onTap: (index) {
-          setState(() {
-            _selectedChart = _chartInfo.keys.elementAt(index);
-          });
         },
+        transitionDuration: const Duration(milliseconds: 250),
       ),
     );
   }
 
+  // ─── Loading / Error ───
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -212,15 +286,8 @@ class _ChartGalleryScreenState extends State<ChartGalleryScreen>
         children: [
           const CircularProgressIndicator(color: AstroTheme.accentGold),
           const SizedBox(height: 20),
-          Text(
-            'Generating Charts...',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This may take a moment',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
-          ),
+          Text('Loading Charts...',
+              style: TextStyle(color: Colors.white.withOpacity(0.7))),
         ],
       ),
     );
@@ -235,19 +302,148 @@ class _ChartGalleryScreenState extends State<ChartGalleryScreen>
           children: [
             const Icon(Icons.error_outline, color: Colors.redAccent, size: 60),
             const SizedBox(height: 16),
-            Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70),
-            ),
+            Text(_errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _loadCharts,
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AstroTheme.accentGold,
-                foregroundColor: Colors.black,
+                  backgroundColor: AstroTheme.accentGold,
+                  foregroundColor: Colors.black),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ─── Chart Card Widget ───
+// ═══════════════════════════════════════════════════════════════
+
+class _ChartCard extends StatelessWidget {
+  final ChartInfo chart;
+  final bool hasData;
+  final VoidCallback onTap;
+
+  const _ChartCard({
+    required this.chart,
+    required this.hasData,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              chart.color.withOpacity(0.2),
+              chart.color.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: chart.color.withOpacity(0.25), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: chart.color.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Background glow circle
+            Positioned(
+              right: -15,
+              top: -15,
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      chart.color.withOpacity(0.12),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Icon + Name row
+                  Row(
+                    children: [
+                      Text(chart.icon, style: const TextStyle(fontSize: 24)),
+                      const Spacer(),
+                      // Status indicator
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: hasData
+                              ? const Color(0xFF34c759)
+                              : Colors.white24,
+                          boxShadow: hasData
+                              ? [
+                                  BoxShadow(
+                                      color: const Color(0xFF34c759)
+                                          .withOpacity(0.4),
+                                      blurRadius: 6)
+                                ]
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  // Chart name
+                  Text(
+                    chart.name,
+                    style: GoogleFonts.outfit(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: chart.color.withOpacity(0.9),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    chart.fullName,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.85),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    chart.desc,
+                    style: GoogleFonts.quicksand(
+                      fontSize: 10.5,
+                      color: Colors.white38,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ],
@@ -255,194 +451,269 @@ class _ChartGalleryScreenState extends State<ChartGalleryScreen>
       ),
     );
   }
+}
 
-  Widget _buildChartTabView() {
-    return TabBarView(
-      controller: _tabController,
-      children: _chartInfo.keys.map((chartKey) {
-        return _buildChartPage(chartKey, _chartInfo[chartKey]!);
-      }).toList(),
+// ═══════════════════════════════════════════════════════════════
+// ─── Chart Detail Screen ───
+// ═══════════════════════════════════════════════════════════════
+
+class _ChartDetailScreen extends StatelessWidget {
+  final ChartInfo chart;
+
+  const _ChartDetailScreen({required this.chart});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: AnimatedCosmicBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(child: _buildChartView(context)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildChartPage(String chartKey, ChartInfo info) {
-    if (_isLoading) {
-      return _buildLoadingState();
-    }
-    
-    // Generate chart data locally
-    final session = UserSession();
-    if (!session.hasData) return const SizedBox.shrink();
-    
-    final details = session.birthDetails!;
-    
-    // Map internal key to Engine key
-    final engineKey = chartKey.toUpperCase(); // 'rasi' -> 'RASI'? No, Engine uses 'D1', 'D9' etc.
-    String vargaKey = 'D1';
-    switch (chartKey) {
-      case 'rasi': vargaKey = 'D1'; break;
-      case 'd3': vargaKey = 'D3'; break;
-      case 'd5': vargaKey = 'D7'; break; // Engine has D7 (Children), typically D5 implies Panchamsa which isn't standard in basic list? VargaCalculator has D7. D5 is usually not distinct in Parashara? Parashara has D1,2,3,4,7,9,10,12,16,20,24,27,30,40,45,60. I'll map 'd5' to 'D7' or remove it? The UI has 'd5'. Let's use D7 for now or check my VargaCalculator.
-      // VargaCalculator.dart has: D1, D2, D3, D4, D7, D9... 
-      // ChartGallery used 'd5' -> 'Panchamsa' -> Children. D7 is Saptamsa (Children). 
-      // I will map 'd5' to 'D7' (Saptamsa) as it is the standard for Children. 
-      // Or I should rename 'd5' to 'd7' in the UI list to be accurate. 
-      // Let's stick to D7 (Saptamsa) for children.
-      case 'd9': vargaKey = 'D9'; break;
-      case 'd10': vargaKey = 'D10'; break;
-      case 'd12': vargaKey = 'D12'; break;
-      case 'd16': vargaKey = 'D16'; break;
-      default: vargaKey = 'D1';
-    }
-
-    // Generate Varga Data
-    // We need to re-generate strictly speaking or access from session if stored.
-    // KundaliOrchestrator stores all vargas in result.
-    // But UserSession stores 'birthChart' map which has 'vargas' map.
-    
-    final allVargas = session.birthChart!['vargas'] as Map<String, dynamic>;
-    final vargaData = allVargas[vargaKey];
-
-    if (vargaData == null) {
-      return Center(child: Text("Chart $vargaKey not available"));
-    }
-
-    // Convert to display format
-    final int ascSign = vargaData['ascendantSign'];
-    final Map<String, int> planetSigns = Map<String, int>.from(vargaData['planetSigns']);
-    
-    // We need 'planets' map format for house building
-    // Build houses using angular method
-    List<List<String>> housesList = List.generate(12, (_) => <String>[]);
-    
-    // Map planet symbols
-    const Map<String, String> planetSymbols = {
-      'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me',
-      'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke',
-    };
-    
-    planetSigns.forEach((planet, sign) {
-      // House = (planet sign - asc sign + 12) % 12 + 1
-      int house = ((sign - ascSign + 12) % 12);
-      String symbol = planetSymbols[planet] ?? planet.substring(0, 2);
-      housesList[house].add(symbol);
-    });
-    
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 16, 0),
+      child: Row(
         children: [
-          // Chart info card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AstroTheme.accentGold.withOpacity(0.15),
-                  AstroTheme.accentGold.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AstroTheme.accentGold.withOpacity(0.3)),
-            ),
-            child: Row(
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon:
+                const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+          ),
+          Text(chart.icon, style: const TextStyle(fontSize: 28)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(info.icon, style: const TextStyle(fontSize: 32)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        info.fullName,
-                        style: const TextStyle(
-                          color: AstroTheme.accentGold,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        info.description,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+                Text(
+                  '${chart.fullName} (${chart.name})',
+                  style: GoogleFonts.outfit(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: chart.color,
                   ),
+                ),
+                Text(
+                  chart.desc,
+                  style: GoogleFonts.quicksand(
+                      fontSize: 12, color: Colors.white54),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Interactive Chart (Non-interactive mode)
-          Container(
-             // Decorate it nicely
-             decoration: BoxDecoration(
-               boxShadow: [
-                  BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0,4))
-               ]
-             ),
-             child: InteractiveKundaliChart(
-                houses: housesList,
-                ascendantSign: ascSign + 1, // 1-based index
-                onHouseChanged: null, // Disable interaction if desired, or enable
-             ),
-          ),
-          
-          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  void _downloadChart(String? url) {
-    if (url == null || url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No chart available to download')),
+  Widget _buildChartView(BuildContext context) {
+    final session = UserSession();
+    if (!session.hasData || session.birthDetails == null) {
+      return const Center(
+        child: Text('No birth details found',
+            style: TextStyle(color: Colors.white54)),
       );
-      return;
     }
-    // TODO: Implement actual download functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Download feature coming soon!'),
-        backgroundColor: AstroTheme.accentCyan,
+
+    final details = session.birthDetails!;
+    final savedDivisionalSvgs =
+        session.birthChart?['divisionalSvgs'] as Map<String, dynamic>?;
+    final savedSvg = savedDivisionalSvgs?[chart.key.toLowerCase()] as String?;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chartSize = (constraints.maxWidth - 32).clamp(260.0, 520.0);
+
+        // Priority: 1. Saved SVG → 2. API SVG fetch → 3. Placeholder
+        Widget chartWidget;
+        if (savedSvg != null && savedSvg.isNotEmpty) {
+          chartWidget = ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: chartSize,
+              height: chartSize,
+              child: SvgPicture.string(
+                preprocessSvg(savedSvg),
+                fit: BoxFit.contain,
+              ),
+            ),
+          );
+        } else {
+          final chartType = _apiChartType(chart.key);
+          if (chartType != null) {
+            final apiDetails = api.BirthDetails(
+              year: details.birthDateTime.year,
+              month: details.birthDateTime.month,
+              date: details.birthDateTime.day,
+              hours: details.birthDateTime.hour,
+              minutes: details.birthDateTime.minute,
+              seconds: details.birthDateTime.second,
+              latitude: details.latitude,
+              longitude: details.longitude,
+              timezone: details.timezoneOffset,
+            );
+            chartWidget = SvgChartViewer(
+              birthDetails: apiDetails,
+              chartType: chartType,
+              size: chartSize,
+              showTitle: false,
+            );
+          } else {
+            chartWidget = _buildPlaceholder(chartSize);
+          }
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Chart info banner
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      chart.color.withOpacity(0.15),
+                      chart.color.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: chart.color.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: chart.color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(chart.icon,
+                          style: const TextStyle(fontSize: 28)),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            chart.fullName,
+                            style: GoogleFonts.outfit(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: chart.color,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            chart.desc,
+                            style: GoogleFonts.quicksand(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Chart display
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.06)),
+                ),
+                child: Center(child: chartWidget),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPlaceholder(double size) {
+    return SizedBox(
+      width: size,
+      height: size * 0.6,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hourglass_empty_rounded,
+                color: Colors.white24, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Recalculate chart to view ${chart.name}',
+              style: const TextStyle(color: Colors.white38, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _shareChart(String? url) {
-    if (url == null || url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No chart available to share')),
-      );
-      return;
-    }
-    // TODO: Implement actual share functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share feature coming soon!'),
-        backgroundColor: AstroTheme.accentGold,
-      ),
-    );
+  // ─── API Chart Type (all 16 Parashara divisions) ───
+  api.DivisionalChart? _apiChartType(String chartKey) {
+    const map = {
+      'd1': api.DivisionalChart.d1,
+      'd2': api.DivisionalChart.d2,
+      'd3': api.DivisionalChart.d3,
+      'd4': api.DivisionalChart.d4,
+      'd7': api.DivisionalChart.d7,
+      'd9': api.DivisionalChart.d9,
+      'd10': api.DivisionalChart.d10,
+      'd12': api.DivisionalChart.d12,
+      'd16': api.DivisionalChart.d16,
+      'd20': api.DivisionalChart.d20,
+      'd24': api.DivisionalChart.d24,
+      'd27': api.DivisionalChart.d27,
+      'd30': api.DivisionalChart.d30,
+      'd40': api.DivisionalChart.d40,
+      'd45': api.DivisionalChart.d45,
+      'd60': api.DivisionalChart.d60,
+    };
+    return map[chartKey.toLowerCase()];
   }
 }
 
-/// Metadata for each chart type
+// ═══════════════════════════════════════════════════════════════
+// ─── ChartInfo Model ───
+// ═══════════════════════════════════════════════════════════════
+
 class ChartInfo {
+  final String key;
   final String name;
   final String fullName;
-  final String description;
+  final String desc;
   final String icon;
+  final Color color;
 
   const ChartInfo({
+    required this.key,
     required this.name,
     required this.fullName,
-    required this.description,
+    required this.desc,
     required this.icon,
+    required this.color,
   });
 }

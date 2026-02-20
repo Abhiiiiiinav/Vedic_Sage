@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 class FreeAstrologyApiService {
   static const String _baseUrl = "https://json.freeastrologyapi.com";
   static const String _apiKey = "O6sSA5hKu8atz6KDG3xQt1rlTLkUzUhJ6x1wwtLJ";
+  static String get fallbackApiKey => _apiKey;
 
   /// Fetch birth chart planetary positions (planets endpoint)
   /// 
