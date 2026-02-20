@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -129,10 +131,20 @@ class AppUpdateService {
         commitMessage: _firstLine(commitMessage),
         commitDate: formattedDate,
       );
+    } on SocketException {
+      return UpdateCheckResult(
+        success: false,
+        error: 'No internet connection. Connect to Internet and try again.',
+      );
+    } on TimeoutException {
+      return UpdateCheckResult(
+        success: false,
+        error: 'Connection timed out. Please try again.',
+      );
     } catch (e) {
       return UpdateCheckResult(
         success: false,
-        error: 'Network error: $e',
+        error: 'Update check failed. Please try later.',
       );
     }
   }
