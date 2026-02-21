@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroLearn — Decode Your Cosmic Blueprint</title>
+    <meta name="description"
+        content="AstroLearn is a production-grade Vedic Astrology learning & analysis app. Generate birth charts, explore Dasha timelines, get AI-powered readings, and master Jyotish.">
+    <link rel="icon" href="images/logo.png" type="image/png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ========== RESET & BASE ========== */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #050510;
+            color: #e0e0f0;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        img {
+            max-width: 100%;
+            display: block;
+        }
+
+        /* ========== CSS VARIABLES ========== */
+        :root {
+            --bg-primary: #050510;
+            --bg-card: #0d0d24;
+            --bg-card-hover: #12123a;
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-glow: rgba(139, 92, 246, 0.3);
+            --text-primary: #f0f0ff;
+            --text-secondary: #9898b8;
+            --text-muted: #6868a0;
+            --accent-purple: #8b5cf6;
+            --accent-violet: #7c3aed;
+            --accent-cyan: #22d3ee;
+            --accent-gold: #f59e0b;
+            --accent-amber: #fbbf24;
+            --accent-rose: #f43f5e;
+            --gradient-purple: linear-gradient(135deg, #8b5cf6, #6d28d9);
+            --gradient-cosmic: linear-gradient(135deg, #0d0d2b 0%, #1a0a3e 50%, #0d0d2b 100%);
+            --gradient-gold: linear-gradient(135deg, #f59e0b, #d97706);
+            --gradient-cyan: linear-gradient(135deg, #22d3ee, #0891b2);
+            --radius-sm: 8px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --radius-xl: 32px;
+        }
+
+        /* ========== STAR FIELD ========== */
+        .star-field {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star-field .star {
+            position: absolute;
+            border-radius: 50%;
+            background: #fff;
+            animation: twinkle var(--dur) ease-in-out infinite alternate;
+        }
+
+        @keyframes twinkle {
+            0% {
+                opacity: var(--o1);
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: var(--o2);
+                transform: scale(1.3);
+            }
+        }
+
+        /* ========== PARALLAX PLANETS ========== */
+        .parallax-planets {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .parallax-planet {
+            position: absolute;
+            will-change: transform;
+            transition: none;
+        }
+
+        .parallax-planet svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 var(--glow-size, 15px) var(--glow-color, rgba(139, 92, 246, 0.4)));
+        }
+
+        .parallax-planet .orbit-ring {
+            position: absolute;
+            inset: -30%;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 50%;
+            animation: orbit-spin var(--orbit-dur, 30s) linear infinite;
+        }
+
+        @keyframes orbit-spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .parallax-planet {
+                opacity: 0.4;
+            }
+
+            .parallax-planet.hide-mobile {
+                display: none;
+            }
+        }
+
+        /* ========== NAVIGATION ========== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            padding: 1rem 2rem;
+            background: rgba(5, 5, 16, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .navbar.scrolled {
+            padding: 0.7rem 2rem;
+            background: rgba(5, 5, 16, 0.92);
+        }
+
+        .nav-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-brand img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+        }
+
+        .nav-brand span {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent-purple);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            padding: 0.6rem 1.5rem;
+            border-radius: 100px;
+            background: var(--gradient-purple);
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+        }
+
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .mobile-toggle span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        /* ========== SECTIONS ========== */
+        section {
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-purple);
+            margin-bottom: 1.5rem;
+        }
+
+        .section-label .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+        }
+
+        /* ========== HERO ========== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 8rem 0 6rem;
+            background: radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.05) 0%, transparent 50%),
+                var(--bg-primary);
+        }
+
+        .hero .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero-content {
+            max-width: 600px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            background: rgba(139, 92, 246, 0.12);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--accent-purple);
+            margin-bottom: 2rem;
+        }
+
+        .hero-badge .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+            position: relative;
+        }
+
+        .hero-badge .pulse::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            border: 1px solid var(--accent-purple);
+            animation: pulse-ring 2s ease-out infinite;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        .hero h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(3rem, 5.5vw, 4.8rem);
+            font-weight: 800;
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, #8b5cf6 0%, #22d3ee 50%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+            max-width: 500px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border-radius: 100px;
+            background: var(--gradient-purple);
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.45);
+        }
+
+        .btn-primary svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            border-radius: 100px;
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 1rem;
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.08);
+        }
+
+        .hero-visual {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .hero-visual img {
+            max-width: 480px;
+            width: 100%;
+            border-radius: var(--radius-lg);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .hero-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            z-index: -1;
+            background: radial-gradient(circle, var(--accent-purple), transparent);
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        /* ========== LOGOS / TECH STRIP ========== */
+        .tech-strip {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .tech-strip .container {
+            text-align: center;
+        }
+
+        .tech-strip p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 2rem;
+            font-weight: 500;
+        }
+
+        .tech-icons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .tech-icon {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+
+        .tech-icon:hover {
+            opacity: 1;
+        }
+
+        .tech-icon svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .tech-icon .emoji {
+            font-size: 1.5rem;
+        }
+
+        /* ========== FEATURES GRID ========== */
+        .features {
+            padding: 8rem 0;
+        }
+
+        .features-header {
+            max-width: 700px;
+            margin-bottom: 4rem;
+        }
+
+        .features-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .features-header p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            padding: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--card-accent, var(--gradient-purple));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.4s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+            background: var(--bg-card-hover);
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 1.25rem;
+            background: var(--icon-bg, rgba(139, 92, 246, 0.12));
+        }
+
+        .feature-card h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.6rem;
+            letter-spacing: -0.01em;
+        }
+
+        .feature-card p {
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+        }
+
+        /* ========== AI SPOTLIGHT ========== */
+        .ai-section {
+            padding: 8rem 0;
+            background: radial-gradient(ellipse at 70% 50%, rgba(139, 92, 246, 0.06) 0%, transparent 60%);
+        }
+
+        .ai-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .ai-content h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 1.25rem;
+        }
+
+        .ai-content>p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+        }
+
+        .ai-features {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .ai-feat {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1.25rem;
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .ai-feat:hover {
+            border-color: var(--border-glow);
+            background: var(--bg-card-hover);
+        }
+
+        .ai-feat-icon {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            background: rgba(139, 92, 246, 0.12);
+        }
+
+        .ai-feat h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .ai-feat p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .ai-visual {
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+
+        .ai-visual img {
+            max-width: 480px;
+            width: 100%;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-subtle);
+        }
+
+        /* ========== STATS ========== */
+        .stats {
+            padding: 6rem 0;
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .stats-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .stats-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+        }
+
+        .stat-number {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.5rem, 4vw, 3.5rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card:nth-child(1) .stat-number {
+            color: var(--accent-purple);
+        }
+
+        .stat-card:nth-child(2) .stat-number {
+            color: var(--accent-cyan);
+        }
+
+        .stat-card:nth-child(3) .stat-number {
+            color: var(--accent-gold);
+        }
+
+        .stat-card:nth-child(4) .stat-number {
+            color: var(--accent-rose);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* ========== LEARNING ========== */
+        .learning {
+            padding: 8rem 0;
+        }
+
+        .learning-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .learning-visual {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .learn-card {
+            padding: 1.75rem;
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .learn-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-3px);
+        }
+
+        .learn-card:nth-child(2) {
+            transform: translateY(1.5rem);
+        }
+
+        .learn-card:nth-child(2):hover {
+            transform: translateY(calc(1.5rem - 3px));
+        }
+
+        .learn-card .emoji {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .learn-card h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.4rem;
+        }
+
+        .learn-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .learning-content h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.2rem, 4vw, 3.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 1.25rem;
+        }
+
+        .learning-content>p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 2.5rem;
+        }
+
+        .progress-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .progress-item label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-item label span {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 100px;
+            width: 0;
+            transition: width 1.5s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .progress-fill.purple {
+            background: var(--gradient-purple);
+        }
+
+        .progress-fill.cyan {
+            background: var(--gradient-cyan);
+        }
+
+        .progress-fill.gold {
+            background: var(--gradient-gold);
+        }
+
+        /* ========== DOWNLOAD CTA ========== */
+        .cta {
+            padding: 8rem 0;
+        }
+
+        .cta-box {
+            text-align: center;
+            padding: 5rem 3rem;
+            border-radius: var(--radius-xl);
+            background: linear-gradient(135deg, #12123a 0%, #1a0a3e 50%, #0d0d2b 100%);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+            animation: cta-glow 8s ease-in-out infinite;
+        }
+
+        @keyframes cta-glow {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(5%, 5%);
+            }
+        }
+
+        .cta-box>* {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-box h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            margin-bottom: 1.25rem;
+        }
+
+        .cta-box p {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            max-width: 550px;
+            margin: 0 auto 2.5rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 2.5rem;
+            border-radius: 100px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-download.primary {
+            background: var(--gradient-purple);
+            color: #fff;
+        }
+
+        .btn-download.primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(139, 92, 246, 0.45);
+        }
+
+        .btn-download.secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .btn-download.secondary:hover {
+            border-color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.08);
+        }
+
+        .btn-download svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* ========== FOOTER ========== */
+        .footer {
+            padding: 3rem 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .footer-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .footer-brand img {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .footer-brand span {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .footer-copy {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .footer-links a {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        /* ========== SCROLL ANIMATIONS ========== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-delay-1 {
+            transition-delay: 0.1s;
+        }
+
+        .reveal-delay-2 {
+            transition-delay: 0.2s;
+        }
+
+        .reveal-delay-3 {
+            transition-delay: 0.3s;
+        }
+
+        .reveal-delay-4 {
+            transition-delay: 0.4s;
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 1024px) {
+            .hero .container {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .hero-content {
+                max-width: 100%;
+                margin: 0 auto;
+            }
+
+            .hero p {
+                margin: 0 auto 2.5rem;
+            }
+
+            .hero-actions {
+                justify-content: center;
+            }
+
+            .hero-visual {
+                margin-top: 2rem;
+            }
+
+            .ai-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-visual {
+                order: -1;
+                margin-bottom: 2rem;
+            }
+
+            .learning-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .learning-visual {
+                order: -1;
+                margin-bottom: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .mobile-toggle {
+                display: flex;
+            }
+
+            .nav-links.open {
+                display: flex;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background: rgba(5, 5, 16, 0.95);
+                backdrop-filter: blur(20px);
+                padding: 1.5rem 2rem;
+                gap: 1rem;
+                border-bottom: 1px solid var(--border-subtle);
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .learning-visual {
+                grid-template-columns: 1fr;
+            }
+
+            .learn-card:nth-child(2) {
+                transform: none;
+            }
+
+            .learn-card:nth-child(2):hover {
+                transform: translateY(-3px);
+            }
+
+            .cta-box {
+                padding: 3.5rem 1.5rem;
+            }
+
+            .footer-inner {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-actions {
+                flex-direction: column;
+            }
+
+            .btn-primary,
+            .btn-secondary {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ========== STAR FIELD ========== -->
+    <div class="star-field" id="starField"></div>
+
+    <!-- ========== PARALLAX PLANETS ========== -->
+    <div class="parallax-planets" id="parallaxPlanets">
+        <!-- Sun -->
+        <div class="parallax-planet" data-speed="0.15"
+            style="top: 8%; left: 85%; width: 70px; height: 70px; --glow-color: rgba(251,191,36,0.5); --glow-size: 25px; opacity: 0.7;">
+            <div class="orbit-ring" style="--orbit-dur: 40s;"></div>
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="sunGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#fef3c7" />
+                        <stop offset="50%" stop-color="#f59e0b" />
+                        <stop offset="100%" stop-color="#d97706" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="38" fill="url(#sunGrad)" />
+                <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(251,191,36,0.2)" stroke-width="1" />
+            </svg>
+        </div>
+        <!-- Moon -->
+        <div class="parallax-planet" data-speed="0.08"
+            style="top: 25%; left: 5%; width: 45px; height: 45px; --glow-color: rgba(226,232,240,0.4); --glow-size: 18px; opacity: 0.6;">
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="moonGrad" cx="40%" cy="40%" r="50%">
+                        <stop offset="0%" stop-color="#f1f5f9" />
+                        <stop offset="100%" stop-color="#94a3b8" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="35" fill="url(#moonGrad)" />
+                <circle cx="38" cy="40" r="6" fill="rgba(148,163,184,0.3)" />
+                <circle cx="60" cy="55" r="4" fill="rgba(148,163,184,0.2)" />
+                <circle cx="48" cy="62" r="3" fill="rgba(148,163,184,0.25)" />
+            </svg>
+        </div>
+        <!-- Mars -->
+        <div class="parallax-planet" data-speed="0.22"
+            style="top: 55%; left: 92%; width: 40px; height: 40px; --glow-color: rgba(239,68,68,0.45); --glow-size: 16px; opacity: 0.6;">
+            <div class="orbit-ring" style="--orbit-dur: 25s;"></div>
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="marsGrad" cx="45%" cy="45%" r="50%">
+                        <stop offset="0%" stop-color="#fca5a5" />
+                        <stop offset="50%" stop-color="#ef4444" />
+                        <stop offset="100%" stop-color="#b91c1c" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="32" fill="url(#marsGrad)" />
+            </svg>
+        </div>
+        <!-- Mercury -->
+        <div class="parallax-planet hide-mobile" data-speed="0.12"
+            style="top: 40%; left: 8%; width: 28px; height: 28px; --glow-color: rgba(34,211,238,0.35); --glow-size: 12px; opacity: 0.5;">
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="mercGrad" cx="45%" cy="45%" r="50%">
+                        <stop offset="0%" stop-color="#a5f3fc" />
+                        <stop offset="100%" stop-color="#0891b2" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="28" fill="url(#mercGrad)" />
+            </svg>
+        </div>
+        <!-- Jupiter -->
+        <div class="parallax-planet" data-speed="0.05"
+            style="top: 70%; left: 15%; width: 80px; height: 80px; --glow-color: rgba(245,158,11,0.3); --glow-size: 20px; opacity: 0.45;">
+            <div class="orbit-ring" style="--orbit-dur: 50s;"></div>
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="jupGrad" cx="45%" cy="40%" r="55%">
+                        <stop offset="0%" stop-color="#fde68a" />
+                        <stop offset="40%" stop-color="#f59e0b" />
+                        <stop offset="100%" stop-color="#92400e" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="42" fill="url(#jupGrad)" />
+                <ellipse cx="50" cy="38" rx="30" ry="3" fill="rgba(254,243,199,0.2)" />
+                <ellipse cx="50" cy="50" rx="34" ry="3" fill="rgba(180,83,9,0.25)" />
+                <ellipse cx="50" cy="58" rx="28" ry="2.5" fill="rgba(254,243,199,0.15)" />
+            </svg>
+        </div>
+        <!-- Venus -->
+        <div class="parallax-planet hide-mobile" data-speed="0.18"
+            style="top: 15%; left: 50%; width: 35px; height: 35px; --glow-color: rgba(236,72,153,0.4); --glow-size: 14px; opacity: 0.55;">
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="venGrad" cx="45%" cy="42%" r="50%">
+                        <stop offset="0%" stop-color="#fce7f3" />
+                        <stop offset="50%" stop-color="#ec4899" />
+                        <stop offset="100%" stop-color="#be185d" />
+                    </radialGradient>
+                </defs>
+                <circle cx="50" cy="50" r="30" fill="url(#venGrad)" />
+            </svg>
+        </div>
+        <!-- Saturn -->
+        <div class="parallax-planet" data-speed="0.03"
+            style="top: 82%; left: 78%; width: 65px; height: 65px; --glow-color: rgba(139,92,246,0.35); --glow-size: 18px; opacity: 0.5;">
+            <svg viewBox="0 0 120 100">
+                <defs>
+                    <radialGradient id="satGrad" cx="50%" cy="45%" r="50%">
+                        <stop offset="0%" stop-color="#ddd6fe" />
+                        <stop offset="50%" stop-color="#8b5cf6" />
+                        <stop offset="100%" stop-color="#5b21b6" />
+                    </radialGradient>
+                </defs>
+                <circle cx="60" cy="50" r="30" fill="url(#satGrad)" />
+                <ellipse cx="60" cy="50" rx="52" ry="10" fill="none" stroke="rgba(196,181,253,0.35)" stroke-width="3" />
+                <ellipse cx="60" cy="50" rx="46" ry="7" fill="none" stroke="rgba(196,181,253,0.2)" stroke-width="2" />
+            </svg>
+        </div>
+        <!-- Rahu (North Node) -->
+        <div class="parallax-planet hide-mobile" data-speed="0.25"
+            style="top: 48%; left: 42%; width: 24px; height: 24px; --glow-color: rgba(99,102,241,0.4); --glow-size: 10px; opacity: 0.4;">
+            <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="22" fill="none" stroke="#818cf8" stroke-width="3" />
+                <circle cx="50" cy="50" r="8" fill="#818cf8" />
+            </svg>
+        </div>
+        <!-- Ketu (South Node) -->
+        <div class="parallax-planet hide-mobile" data-speed="0.2"
+            style="top: 90%; left: 40%; width: 22px; height: 22px; --glow-color: rgba(251,146,60,0.35); --glow-size: 10px; opacity: 0.35;">
+            <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="22" fill="none" stroke="#fb923c" stroke-width="3" stroke-dasharray="8 6" />
+                <circle cx="50" cy="50" r="6" fill="#fb923c" />
+            </svg>
+        </div>
+    </div>
+
+    <!-- ========== NAVIGATION ========== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-inner">
+            <a href="#" class="nav-brand">
+                <img src="images/logo.png" alt="AstroLearn Logo">
+                <span>AstroLearn</span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#ai">AI Engine</a></li>
+                <li><a href="#stats">By the Numbers</a></li>
+                <li><a href="#learn">Learning</a></li>
+            </ul>
+            <a href="AstroLearn.apk" target="_blank" class="nav-cta">Download App</a>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <div class="pulse"></div>
+                    Vedic Astrology, Reimagined
+                </div>
+                <h1>
+                    Decode your<br>
+                    <span class="gradient-text">cosmic blueprint</span>
+                </h1>
+                <p>
+                    AstroLearn brings ancient Jyotish wisdom into the modern age — AI-powered birth charts, personalized
+                    Dasha timelines, daily predictions, and a structured path to mastering Vedic astrology.
+                </p>
+                <div class="hero-actions">
+                    <a href="AstroLearn.apk" target="_blank" class="btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        Download Now
+                    </a>
+                    <a href="#features" class="btn-secondary">
+                        Explore Features
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M7 17l9.2-9.2M17 17V7.8H7.8" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-glow"></div>
+                <img src="images/hero_mockup.png" alt="AstroLearn App Preview">
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== TECH STRIP ========== -->
+    <section class="tech-strip">
+        <div class="container">
+            <p>Built with modern technology</p>
+            <div class="tech-icons">
+                <div class="tech-icon"><span class="emoji">📱</span> Flutter</div>
+                <div class="tech-icon"><span class="emoji">🤖</span> Gemini AI</div>
+                <div class="tech-icon"><span class="emoji">🔒</span> Offline-First</div>
+                <div class="tech-icon"><span class="emoji">⚡</span> Real-Time</div>
+                <div class="tech-icon"><span class="emoji">🌐</span> Cross-Platform</div>
+                <div class="tech-icon"><span class="emoji">🔮</span> Free Astrology API</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FEATURES ========== -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="features-header reveal">
+                <div class="section-label"><span class="dot"></span> What you can do</div>
+                <h2>Everything you need to<br>explore the stars</h2>
+                <p>From precise birth chart calculations to AI-driven insights — AstroLearn is the most complete Vedic
+                    astrology toolkit in your pocket.</p>
+            </div>
+            <div class="features-grid">
+                <!-- Card 1 -->
+                <div class="feature-card reveal"
+                    style="--card-accent: linear-gradient(135deg, #8b5cf6, #6d28d9); --icon-bg: rgba(139,92,246,0.12);">
+                    <div class="feature-icon">🔮</div>
+                    <h3>Birth Chart Engine</h3>
+                    <p>Generate all 16 divisional charts (D1–D60) with professional-grade accuracy. North Indian style
+                        display with interactive, tappable houses.</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="feature-card reveal reveal-delay-1"
+                    style="--card-accent: linear-gradient(135deg, #22d3ee, #0891b2); --icon-bg: rgba(34,211,238,0.12);">
+                    <div class="feature-icon">🪐</div>
+                    <h3>Planet Analysis</h3>
+                    <p>Deep AI-powered interpretations for every planet — sign placement, house position, dignity
+                        status, Nakshatra, and personalized remedies.</p>
+                </div>
+                <!-- Card 3 -->
+                <div class="feature-card reveal reveal-delay-2"
+                    style="--card-accent: linear-gradient(135deg, #f59e0b, #d97706); --icon-bg: rgba(245,158,11,0.12);">
+                    <div class="feature-icon">📅</div>
+                    <h3>Dasha Timeline</h3>
+                    <p>Visualize your Vimshottari Dasha periods with an animated timeline. See current Mahadasha,
+                        Antardasha, and Pratyantardasha at a glance.</p>
+                </div>
+                <!-- Card 4 -->
+                <div class="feature-card reveal"
+                    style="--card-accent: linear-gradient(135deg, #f43f5e, #e11d48); --icon-bg: rgba(244,63,94,0.12);">
+                    <div class="feature-icon">💡</div>
+                    <h3>Daily Predictions</h3>
+                    <p>Wake up to AI-generated daily horoscopes crafted from your transits and Panchang. Personalized
+                        guidance every single morning.</p>
+                </div>
+                <!-- Card 5 -->
+                <div class="feature-card reveal reveal-delay-1"
+                    style="--card-accent: linear-gradient(135deg, #10b981, #059669); --icon-bg: rgba(16,185,129,0.12);">
+                    <div class="feature-icon">❓</div>
+                    <h3>Ask AI Anything</h3>
+                    <p>Ask astrological questions with your full chart context. Get personalized answers powered by
+                        Google Gemini AI — like having a Jyotishi on call.</p>
+                </div>
+                <!-- Card 6 -->
+                <div class="feature-card reveal reveal-delay-2"
+                    style="--card-accent: linear-gradient(135deg, #ec4899, #db2777); --icon-bg: rgba(236,72,153,0.12);">
+                    <div class="feature-icon">🔤</div>
+                    <h3>Vedic Name Analysis</h3>
+                    <p>Discover the Nakshatra energy in your name through advanced phonetic matching. Get AI-powered
+                        naming suggestions aligned with your chart.</p>
+                </div>
+                <!-- Card 7 -->
+                <div class="feature-card reveal"
+                    style="--card-accent: linear-gradient(135deg, #8b5cf6, #7c3aed); --icon-bg: rgba(139,92,246,0.12);">
+                    <div class="feature-icon">🗓️</div>
+                    <h3>Panchang</h3>
+                    <p>Complete Hindu almanac — Tithi, Nakshatra, Yoga, Karana, and Vara. Know the auspicious timings
+                        for every day.</p>
+                </div>
+                <!-- Card 8 -->
+                <div class="feature-card reveal reveal-delay-1"
+                    style="--card-accent: linear-gradient(135deg, #f43f5e, #e11d48); --icon-bg: rgba(244,63,94,0.12);">
+                    <div class="feature-icon">💑</div>
+                    <h3>Relationship Compatibility</h3>
+                    <p>Analyze romantic compatibility through Darakaraka analysis and trine (1-5-9) Dharma matching.
+                        Understand your relationship blueprint.</p>
+                </div>
+                <!-- Card 9 -->
+                <div class="feature-card reveal reveal-delay-2"
+                    style="--card-accent: linear-gradient(135deg, #22d3ee, #0891b2); --icon-bg: rgba(34,211,238,0.12);">
+                    <div class="feature-icon">🏛️</div>
+                    <h3>Arudha Pada</h3>
+                    <p>Discover how the world perceives you through all 12 Bhava Arudhas. Understand the gap between
+                        your reality and your public image.</p>
+                </div>
+                <!-- Card 10 -->
+                <div class="feature-card reveal"
+                    style="--card-accent: linear-gradient(135deg, #10b981, #059669); --icon-bg: rgba(16,185,129,0.12);">
+                    <div class="feature-icon">🌱</div>
+                    <h3>Personal Growth</h3>
+                    <p>Get personalized growth exercises tailored to each of your planetary placements. Turn chart
+                        insights into actionable self-improvement.</p>
+                </div>
+                <!-- Card 11 -->
+                <div class="feature-card reveal reveal-delay-1"
+                    style="--card-accent: linear-gradient(135deg, #f59e0b, #d97706); --icon-bg: rgba(245,158,11,0.12);">
+                    <div class="feature-icon">📖</div>
+                    <h3>Learning Roadmap</h3>
+                    <p>A structured Vedic astrology curriculum with chapters, lessons, interactive quizzes, and XP
+                        rewards. Go from beginner to expert.</p>
+                </div>
+                <!-- Card 12 -->
+                <div class="feature-card reveal reveal-delay-2"
+                    style="--card-accent: linear-gradient(135deg, #ec4899, #db2777); --icon-bg: rgba(236,72,153,0.12);">
+                    <div class="feature-icon">🏆</div>
+                    <h3>Gamification</h3>
+                    <p>Earn XP, level up, unlock achievements, and maintain learning streaks. Mastering Jyotish has
+                        never been this engaging and rewarding.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== AI SPOTLIGHT ========== -->
+    <section class="ai-section" id="ai">
+        <div class="container">
+            <div class="ai-grid">
+                <div class="ai-content reveal">
+                    <div class="section-label"><span class="dot"></span> AI-Powered</div>
+                    <h2>Your personal<br><span class="gradient-text">AI Jyotishi</span></h2>
+                    <p>Google Gemini AI sits at the heart of AstroLearn, delivering 18+ specialized interpretation
+                        methods — from chart readings to remedies.</p>
+                    <div class="ai-features">
+                        <div class="ai-feat">
+                            <div class="ai-feat-icon">🧠</div>
+                            <div>
+                                <h4>Chart Readings</h4>
+                                <p>Complete planet-in-sign-in-house interpretations with dignity, aspects, and Nakshatra
+                                    context.</p>
+                            </div>
+                        </div>
+                        <div class="ai-feat">
+                            <div class="ai-feat-icon">🌅</div>
+                            <div>
+                                <h4>Daily Forecasts</h4>
+                                <p>Personalized daily predictions based on live transits over your natal chart.</p>
+                            </div>
+                        </div>
+                        <div class="ai-feat">
+                            <div class="ai-feat-icon">💊</div>
+                            <div>
+                                <h4>Remedies & Guidance</h4>
+                                <p>Get actionable Vedic remedies — mantras, gemstones, and lifestyle suggestions
+                                    tailored to your chart.</p>
+                            </div>
+                        </div>
+                        <div class="ai-feat">
+                            <div class="ai-feat-icon">💬</div>
+                            <div>
+                                <h4>Conversational Q&A</h4>
+                                <p>Ask any astrological question and receive chart-aware answers in plain language.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-visual reveal reveal-delay-2">
+                    <img src="images/ai_mockup.png" alt="AI-Powered Astrology Analysis">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== STATS ========== -->
+    <section class="stats" id="stats">
+        <div class="container">
+            <div class="stats-header reveal">
+                <div class="section-label" style="justify-content:center;"><span class="dot"></span> Numbers that drive
+                    success</div>
+                <h2>Built for depth,<br>designed for delight</h2>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card reveal">
+                    <div class="stat-number" data-target="16">0</div>
+                    <div class="stat-label">Divisional Charts (D1–D60)</div>
+                </div>
+                <div class="stat-card reveal reveal-delay-1">
+                    <div class="stat-number" data-target="18" data-suffix="+">0</div>
+                    <div class="stat-label">AI Interpretation Methods</div>
+                </div>
+                <div class="stat-card reveal reveal-delay-2">
+                    <div class="stat-number" data-target="27">0</div>
+                    <div class="stat-label">Nakshatras Covered</div>
+                </div>
+                <div class="stat-card reveal reveal-delay-3">
+                    <div class="stat-number" data-target="12">0</div>
+                    <div class="stat-label">Unique Feature Modules</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== LEARNING ========== -->
+    <section class="learning" id="learn">
+        <div class="container">
+            <div class="learning-grid">
+                <div class="learning-visual reveal">
+                    <div class="learn-card">
+                        <span class="emoji">📚</span>
+                        <h4>Structured Curriculum</h4>
+                        <p>Chapters & lessons from basics to advanced Jaimini techniques.</p>
+                    </div>
+                    <div class="learn-card">
+                        <span class="emoji">🎯</span>
+                        <h4>Interactive Quizzes</h4>
+                        <p>Multiple-choice questions with detailed explanations to cement your knowledge.</p>
+                    </div>
+                    <div class="learn-card">
+                        <span class="emoji">⚡</span>
+                        <h4>XP & Levels</h4>
+                        <p>Earn experience points, level up, and track your journey from novice to expert.</p>
+                    </div>
+                    <div class="learn-card">
+                        <span class="emoji">🏅</span>
+                        <h4>Achievements & Streaks</h4>
+                        <p>Unlock badges and maintain daily streaks for consistent learning.</p>
+                    </div>
+                </div>
+                <div class="learning-content reveal reveal-delay-2">
+                    <div class="section-label"><span class="dot"></span> Learn & Grow</div>
+                    <h2>Master Vedic astrology,<br>one lesson at a time</h2>
+                    <p>AstroLearn isn't just a chart tool — it's a complete learning platform. Our structured roadmap
+                        guides you from the fundamentals of Jyotish to advanced techniques like Jaimini Karakas and
+                        Arudha Padas.</p>
+                    <div class="progress-bars">
+                        <div class="progress-item">
+                            <label>Fundamentals <span>Planets, Signs, Houses</span></label>
+                            <div class="progress-bar">
+                                <div class="progress-fill purple" data-width="92"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <label>Intermediate <span>Dashas, Nakshatras, Yogas</span></label>
+                            <div class="progress-bar">
+                                <div class="progress-fill cyan" data-width="78"></div>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <label>Advanced <span>Jaimini, Arudha, Varga</span></label>
+                            <div class="progress-bar">
+                                <div class="progress-fill gold" data-width="65"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CTA ========== -->
+    <section class="cta" id="download">
+        <div class="container">
+            <div class="cta-box reveal">
+                <div class="section-label" style="justify-content:center;"><span class="dot"></span> Get Started</div>
+                <h2>Ready to read<br>the stars?</h2>
+                <p>Download AstroLearn today and unlock the full power of Vedic astrology — birth charts, AI readings,
+                    Dasha timelines, and a structured learning path, all in one app.</p>
+                <div class="cta-buttons">
+                    <a href="AstroLearn.apk" target="_blank" class="btn-download primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        Download for Android
+                    </a>
+                    <a href="#features" class="btn-download secondary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <polygon points="10 8 16 12 10 16 10 8" />
+                        </svg>
+                        See All Features
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <img src="images/logo.png" alt="AstroLearn">
+                    <span>AstroLearn</span>
+                </div>
+                <div class="footer-copy">© 2026 AstroLearn. Crafted with ✨ cosmic precision.</div>
+                <div class="footer-links">
+                    <a href="#features">Features</a>
+                    <a href="#ai">AI Engine</a>
+                    <a href="#download">Download</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========== JAVASCRIPT ========== -->
+    <script>
+        // ===== STAR FIELD =====
+        (function createStars() {
+            const field = document.getElementById('starField');
+            const count = 120;
+            for (let i = 0; i < count; i++) {
+                const star = document.createElement('div');
+                star.classList.add('star');
+                const size = Math.random() * 2 + 0.5;
+                star.style.width = size + 'px';
+                star.style.height = size + 'px';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.setProperty('--dur', (Math.random() * 3 + 2) + 's');
+                star.style.setProperty('--o1', (Math.random() * 0.3 + 0.1).toFixed(2));
+                star.style.setProperty('--o2', (Math.random() * 0.5 + 0.5).toFixed(2));
+                star.style.animationDelay = (Math.random() * 5) + 's';
+                field.appendChild(star);
+            }
+        })();
+
+        // ===== NAVBAR SCROLL =====
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            navbar.classList.toggle('scrolled', window.scrollY > 50);
+        });
+
+        // ===== MOBILE MENU =====
+        const toggle = document.getElementById('mobileToggle');
+        const navLinks = document.getElementById('navLinks');
+        toggle.addEventListener('click', () => navLinks.classList.toggle('open'));
+        navLinks.querySelectorAll('a').forEach(a => {
+            a.addEventListener('click', () => navLinks.classList.remove('open'));
+        });
+
+        // ===== SCROLL REVEAL =====
+        const reveals = document.querySelectorAll('.reveal');
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
+        reveals.forEach(el => revealObserver.observe(el));
+
+        // ===== STAT COUNTERS =====
+        const statNumbers = document.querySelectorAll('.stat-number');
+        const counterObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const el = entry.target;
+                    const target = parseInt(el.dataset.target);
+                    const suffix = el.dataset.suffix || '';
+                    let current = 0;
+                    const step = Math.ceil(target / 40);
+                    const timer = setInterval(() => {
+                        current += step;
+                        if (current >= target) {
+                            current = target;
+                            clearInterval(timer);
+                        }
+                        el.textContent = current + suffix;
+                    }, 40);
+                    counterObserver.unobserve(el);
+                }
+            });
+        }, { threshold: 0.5 });
+        statNumbers.forEach(el => counterObserver.observe(el));
+
+        // ===== PROGRESS BARS =====
+        const progressFills = document.querySelectorAll('.progress-fill');
+        const progressObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.width = entry.target.dataset.width + '%';
+                    progressObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+        progressFills.forEach(el => progressObserver.observe(el));
+
+        // ===== PARALLAX PLANETS =====
+        (function initParallax() {
+            const planets = document.querySelectorAll('.parallax-planet');
+            let ticking = false;
+            let lastScrollY = window.scrollY;
+
+            function updateParallax() {
+                const scrollY = window.scrollY;
+                planets.forEach(planet => {
+                    const speed = parseFloat(planet.dataset.speed) || 0.1;
+                    const yOffset = -(scrollY * speed);
+                    const xWobble = Math.sin(scrollY * 0.002 * speed) * (15 * speed);
+                    planet.style.transform = `translate3d(${xWobble}px, ${yOffset}px, 0)`;
+                });
+                ticking = false;
+            }
+
+            window.addEventListener('scroll', () => {
+                if (!ticking) {
+                    requestAnimationFrame(updateParallax);
+                    ticking = true;
+                }
+            }, { passive: true });
+
+            updateParallax();
+        })();
+    </script>
+</body>
+
+</html>
