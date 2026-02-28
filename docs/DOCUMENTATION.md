@@ -1,6 +1,6 @@
 # AstroLearn — Complete Project Documentation
 
-> A production-grade Vedic Astrology learning & analysis mobile app built with Flutter + Flask.
+> A production-grade Vedic Astrology learning & analysis mobile app built with Flutter + direct Free Astrology API integration.
 
 ---
 
@@ -62,7 +62,7 @@
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Frontend** | Flutter 3.x / Dart | Cross-platform mobile UI |
-| **Backend** | Flask (Python) | Chart proxy + caching |
+| **Backend** | Direct API Integration | Client-side chart + planets fetch with key rotation |
 | **Database** | Hive (local) | Profile, chart, & cache storage |
 | **AI** | Google Gemini API | Astrological interpretations |
 | **Charts** | Free Astrology API | SVG birth charts (D1–D60) |
@@ -134,9 +134,9 @@ AstroLearn/
 
 ## Backend (Flask API)
 
-### `backend/app.py`
+### Direct Chart Fetch
 
-Flask proxy server that fetches SVG charts from the Free Astrology API with key rotation, caching, and deterministic chart IDs.
+Chart and planetary data are fetched directly from Free Astrology API via Flutter services with key rotation, SVG validation, and local caching.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -193,7 +193,7 @@ Test script to verify planetary data endpoints work correctly.
 | File | Lines | Description |
 |------|-------|-------------|
 | `gemini_service.dart` | 1401 | **Google Gemini AI integration.** 18+ methods for generating astrological interpretations: daily predictions, chart readings, name analysis, Dasha interpretation, Darakaraka analysis, trine compatibility, Lagna analysis, Nakshatra profiling, planetary remedies, growth exercises, Q&A. |
-| `chart_api_service.dart` | ~430 | Flutter HTTP client for the Flask backend. Handles chart fetching, batch requests, URL construction for physical devices vs emulators. |
+| `chart_api_service.dart` | ~430 | Flutter HTTP client for direct Free Astrology API. Handles chart fetching, batch requests, strict SVG validity checks, and normalized API parsing. |
 | `free_astrology_api_service.dart` | ~530 | Direct client for the Free Astrology API (planetary data endpoints). Used by chart screen for planet positions. |
 | `chart_storage_service.dart` | ~220 | Saves divisional charts to Hive. Validates SVG, uses `SvgChartParser` to extract planets, creates `DivisionalChartModel`. |
 | `svg_chart_parser.dart` | ~160 | Parses SVG chart text elements to extract planet positions. Maps SVG coordinates → grid cells → zodiac signs → houses. |
@@ -222,7 +222,7 @@ Test script to verify planetary data endpoints work correctly.
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `chart_repository.dart` | ~270 | **Cache-first chart fetching.** Checks Hive cache → if miss, calls Flask API → saves to Hive. Supports single and batch operations. Includes cache validation, expiry, refresh, and stats. |
+| `chart_repository.dart` | ~270 | **Cache-first chart fetching.** Checks Hive cache → if miss, calls direct API → saves to Hive. Supports single and batch operations. Includes cache validation, expiry, refresh, and stats. |
 
 ---
 
@@ -301,7 +301,7 @@ The largest feature module. Handles chart display, interaction, and details.
 | `chart_screen.dart` | Screen | Main chart display. Shows SVG chart, planet positions, house details. Fetches from Flask API via `ChartApiService`. |
 | `chart_loader_screen.dart` | Screen | Loading screen while chart is being fetched/generated. |
 | `chart_gallery_screen.dart` | Screen | Gallery view of all divisional charts (D1–D60). |
-| `flask_chart_demo_screen.dart` | Screen | Demo screen for testing Flask API chart generation. |
+| `chart_api_demo_screen.dart` | Screen | Demo screen for testing direct API chart generation. |
 | `house_detail_screen.dart` | Screen | Detailed view of a specific house: lord, planets, significations, AI interpretation. |
 | `planet_detail_screen.dart` | Screen | Detailed view of a specific planet: sign, house, dignity, Nakshatra, AI interpretation. |
 | `sign_detail_screen.dart` | Screen | Detailed view of a zodiac sign: ruler, element, quality, planets placed. |

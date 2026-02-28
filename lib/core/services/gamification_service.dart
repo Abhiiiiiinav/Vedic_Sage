@@ -85,14 +85,17 @@ class GamificationService {
       final lastDay = DateTime(last.year, last.month, last.day);
       final diff = today.difference(lastDay).inDays;
 
-      if (diff == 1) {
+      if (diff == 0) {
+        // Same day — just update timestamp, no streak change
+        await _prefs?.setInt(_keyLastActivityDate, now.millisecondsSinceEpoch);
+        return;
+      } else if (diff == 1) {
         // Consecutive day — increment streak
         await _prefs?.setInt(_keyCurrentStreak, currentStreak + 1);
       } else if (diff > 1) {
         // Missed a day — reset streak to 1
         await _prefs?.setInt(_keyCurrentStreak, 1);
       }
-      // diff == 0 means same day — no change
     } else {
       // First ever activity
       await _prefs?.setInt(_keyCurrentStreak, 1);

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/astro_data.dart';
 import '../../../shared/widgets/astro_card.dart';
@@ -11,7 +10,6 @@ import 'planet_detail_screen.dart';
 import 'house_detail_screen.dart';
 import 'sign_detail_screen.dart';
 import '../../../core/services/user_session.dart';
-import '../../../core/services/free_astrology_api_service.dart';
 import '../../calculator/screens/birth_details_screen.dart';
 import 'chart_gallery_screen.dart';
 import '../../../core/services/chart_api_service.dart' as api;
@@ -20,7 +18,6 @@ import '../../../core/services/svg_chart_parser.dart';
 
 /// Chart display styles
 enum ChartStyle {
-  northInteractive('North Indian', 'Interactive local chart'),
   southApi('South Indian', 'API-generated chart'),
   divisional('Divisional', 'Multiple divisional charts');
 
@@ -36,38 +33,36 @@ class ChartScreen extends StatefulWidget {
   State<ChartScreen> createState() => _ChartScreenState();
 }
 
-class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStateMixin {
+class _ChartScreenState extends State<ChartScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final UserSession _session = UserSession();
   final api.ChartApiService _chartApiService = api.ChartApiService();
-  
+
   // Chart style state
-  ChartStyle _selectedChartStyle = ChartStyle.northInteractive;
-  
+  ChartStyle _selectedChartStyle = ChartStyle.southApi;
+
   // SVG chart state
-  String? _chartSvg;
-  bool _isLoadingSvg = false;
-  bool _useSvgChart = false; // Default to Interactive Chart (Local Engine)
   final Map<String, String?> _svgChartCache = <String, String?>{};
   final Set<String> _inFlightSvgRequests = <String>{};
   String? _lastSvgProfileKey;
-  
+
   // API extracted data (stored for reference across the app)
   Map<String, dynamic>? _apiPlanetaryData;
   ExtractedChartData? _extractedChartData; // Structured extracted data
   bool _isLoadingApiData = false;
   bool _isApiServerAvailable = false;
-  
+
   // Selected divisional chart for South style
   api.DivisionalChart _selectedDivisionalChart = api.DivisionalChart.d1;
-  
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _checkApiServerAndLoadData();
   }
-  
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -76,24 +71,45 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
   }
 
   bool _showChart = true;
-  int _selectedHouse = 1;
-  
-  /// Check if Flask server is available and load planetary data
+
+  bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized.isEmpty) {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
+  /// Check if chart API service is available and load planetary data
   Future<void> _checkApiServerAndLoadData() async {
     final isAvailable = await _chartApiService.healthCheck();
     setState(() => _isApiServerAvailable = isAvailable);
-    
+
     if (isAvailable && _session.hasData) {
       await _loadApiPlanetaryData();
     }
   }
-  
-  /// Load planetary data from Flask API and store for reference
+
+  /// Load planetary data from direct API and store for reference
   Future<void> _loadApiPlanetaryData() async {
     if (!_session.hasData || _session.birthDetails == null) return;
-    
+
     setState(() => _isLoadingApiData = true);
-    
+
     try {
       final details = _session.birthDetails!;
       final apiDetails = api.BirthDetails(
@@ -107,18 +123,18 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
         longitude: details.longitude,
         timezone: details.timezoneOffset,
       );
-      
+
       final planetaryData = await _chartApiService.getPlanetaryData(apiDetails);
-      
+
       if (mounted && planetaryData.isNotEmpty) {
         setState(() {
           _apiPlanetaryData = planetaryData;
           _isLoadingApiData = false;
         });
-        
+
         // Store in session for app-wide reference
         _storeApiDataInSession(planetaryData);
-        
+
         print('✅ API Planetary Data loaded: ${planetaryData.keys.join(", ")}');
       } else {
         setState(() => _isLoadingApiData = false);
@@ -128,98 +144,136 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       setState(() => _isLoadingApiData = false);
     }
   }
-  
+
   /// Store API extracted data in the session for reference
   void _storeApiDataInSession(Map<String, dynamic> planetaryData) {
     if (_session.birthChart == null) return;
-    
+
     // Vedic planets (exclude modern planets)
-    const vedicPlanets = {'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Ascendant'};
-    
+    const vedicPlanets = {
+      'Sun',
+      'Moon',
+      'Mars',
+      'Mercury',
+      'Jupiter',
+      'Venus',
+      'Saturn',
+      'Rahu',
+      'Ketu',
+      'Ascendant'
+    };
+
     // Convert planet map to list format expected by extractor (filter Vedic only)
     final planetsList = planetaryData.entries
-        .where((e) => e.key != 'ayanamsa' && e.value is Map && vedicPlanets.contains(e.key))
+        .where((e) =>
+            e.key != 'ayanamsa' &&
+            e.value is Map &&
+            vedicPlanets.contains(e.key))
         .map((e) => {e.key: e.value})
         .toList();
-    
+
     // Get ascendant from session
     final ascSignIndex = _session.birthChart!['ascSignIndex'] as int? ?? 0;
-    
+
     // Use the new extractor for structured data
     final extractedData = SvgChartDataExtractor.extractFromApiResponse(
       planetsList,
       chartType: 'D1',
       ascendantSign: ascSignIndex + 1, // Convert 0-indexed to 1-indexed
     );
-    
+
     // Store structured data
     setState(() {
       _extractedChartData = extractedData;
     });
-    
+
     // Create enriched chart data with API planetary positions
     final enrichedChart = Map<String, dynamic>.from(_session.birthChart!);
     enrichedChart['apiPlanets'] = planetaryData;
     enrichedChart['extractedChartData'] = extractedData.toMap();
-    
+
     // Store house-planet mapping
     enrichedChart['housePlanets'] = extractedData.housePlanets.map(
       (house, planets) => MapEntry(house.toString(), planets),
     );
-    
+
     // Store simplified planet positions for quick access
     final extractedDetails = _extractChartDetails(planetaryData);
     enrichedChart['apiExtracted'] = extractedDetails;
-    
+
     // Update session (note: this doesn't call saveSession, just updates the reference)
     _session.birthChart!.addAll(enrichedChart);
-    
-    print('📊 Extracted ${extractedData.planets.length} planets, Asc: ${extractedData.ascendantSignName}');
-    print('🏠 House Planets: ${extractedData.housePlanets.entries.where((e) => e.value.isNotEmpty).map((e) => "H${e.key}: ${e.value.join(",")}").join(" | ")}');
+
+    print(
+        '📊 Extracted ${extractedData.planets.length} planets, Asc: ${extractedData.ascendantSignName}');
+    print(
+        '🏠 House Planets: ${extractedData.housePlanets.entries.where((e) => e.value.isNotEmpty).map((e) => "H${e.key}: ${e.value.join(",")}").join(" | ")}');
   }
-  
+
   /// Extract key chart details from planetary data
-  Map<String, dynamic> _extractChartDetails(Map<String, dynamic> planetaryData) {
+  Map<String, dynamic> _extractChartDetails(
+      Map<String, dynamic> planetaryData) {
     final extracted = <String, dynamic>{};
-    
+
     // Vedic planets only
-    const vedicPlanets = {'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu', 'Ascendant'};
-    
+    const vedicPlanets = {
+      'Sun',
+      'Moon',
+      'Mars',
+      'Mercury',
+      'Jupiter',
+      'Venus',
+      'Saturn',
+      'Rahu',
+      'Ketu',
+      'Ascendant'
+    };
+
     // Extract each planet's details
     planetaryData.forEach((key, value) {
-      if (value is Map<String, dynamic> && key != 'ayanamsa' && vedicPlanets.contains(key)) {
+      if (value is Map<String, dynamic> &&
+          key != 'ayanamsa' &&
+          vedicPlanets.contains(key)) {
         extracted[key] = {
           'name': value['name'] ?? key,
-          'sign': value['current_sign'] != null 
-              ? SvgChartDataExtractor.signs[(value['current_sign'] as int).clamp(1, 12) - 1]
+          'sign': value['current_sign'] != null
+              ? SvgChartDataExtractor
+                  .signs[(value['current_sign'] as int).clamp(1, 12) - 1]
               : (value['sign'] ?? value['zodiac_sign_name']),
-          'signNumber': value['current_sign'] ?? value['sign_num'] ?? value['zodiac_sign_number'],
+          'signNumber': value['current_sign'] ??
+              value['sign_num'] ??
+              value['zodiac_sign_number'],
           'nakshatra': value['nakshatra'] ?? value['nakshatra_name'],
-          'nakshatraPada': value['nakshatra_pada'] ?? value['nakshatra_quarter'],
-          'longitude': value['fullDegree'] ?? value['longitude'] ?? value['full_degree'],
-          'signDegree': value['normDegree'] ?? value['sign_degree'] ?? value['current_sign_degree'],
+          'nakshatraPada':
+              value['nakshatra_pada'] ?? value['nakshatra_quarter'],
+          'longitude':
+              value['fullDegree'] ?? value['longitude'] ?? value['full_degree'],
+          'signDegree': value['normDegree'] ??
+              value['sign_degree'] ??
+              value['current_sign_degree'],
           'house': value['house_number'] ?? value['house'],
-          'isRetrograde': value['isRetro'] ?? value['is_retro'] ?? value['isRetrograde'] ?? false,
+          'isRetrograde': _parseBool(
+            value['isRetro'] ?? value['is_retro'] ?? value['isRetrograde'],
+          ),
           'nakshatraLord': value['nakshatra_lord'],
           'signLord': value['sign_lord'] ?? value['zodiac_lord'],
         };
       }
     });
-    
+
     // Store ayanamsa if available
     if (planetaryData.containsKey('ayanamsa')) {
       extracted['ayanamsa'] = planetaryData['ayanamsa'];
     }
-    
+
     return extracted;
   }
-  
+
   /// Load SVG chart from API
   Future<void> _loadChartSvg() async {
     if (!_session.hasData || _session.birthDetails == null) return;
-    
+
     final details = _session.birthDetails!;
-    final birthDateTime = details.birthDateTime;
     final chartKey = _selectedDivisionalChart.code.toLowerCase();
     final profileKey = _buildSvgProfileKey();
     final requestKey = '$profileKey|$chartKey';
@@ -233,12 +287,10 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     final cachedSvg = _svgChartCache[requestKey];
     if (cachedSvg != null && cachedSvg.isNotEmpty) {
       setState(() {
-        _chartSvg = cachedSvg;
         _extractedChartData = _extractFromSvg(
           cachedSvg,
           chartCode: _selectedDivisionalChart.code,
         );
-        _isLoadingSvg = false;
       });
       return;
     }
@@ -248,13 +300,11 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     final savedSvg = savedDivisionalSvgs?[chartKey];
     if (savedSvg is String && savedSvg.isNotEmpty) {
       setState(() {
-        _chartSvg = savedSvg;
         _svgChartCache[requestKey] = savedSvg;
         _extractedChartData = _extractFromSvg(
           savedSvg,
           chartCode: _selectedDivisionalChart.code,
         );
-        _isLoadingSvg = false;
       });
       return;
     }
@@ -263,35 +313,35 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       return;
     }
 
-    setState(() => _isLoadingSvg = true);
     _inFlightSvgRequests.add(requestKey);
-    
+
     try {
-      final svg = chartKey == 'd1'
-          ? await FreeAstrologyApiService.fetchHoroscopeChartSvg(
-              year: birthDateTime.year,
-              month: birthDateTime.month,
-              date: birthDateTime.day,
-              hours: birthDateTime.hour,
-              minutes: birthDateTime.minute,
-              latitude: details.latitude,
-              longitude: details.longitude,
-              timezone: details.timezoneOffset,
-            )
-          : await FreeAstrologyApiService.fetchDivisionalChartSvg(
-              chartType: chartKey,
-              year: birthDateTime.year,
-              month: birthDateTime.month,
-              date: birthDateTime.day,
-              hours: birthDateTime.hour,
-              minutes: birthDateTime.minute,
-              latitude: details.latitude,
-              longitude: details.longitude,
-              timezone: details.timezoneOffset,
-            );
-      
+      final apiDetails = api.BirthDetails(
+        year: details.birthDateTime.year,
+        month: details.birthDateTime.month,
+        date: details.birthDateTime.day,
+        hours: details.birthDateTime.hour,
+        minutes: details.birthDateTime.minute,
+        seconds: 0,
+        latitude: details.latitude,
+        longitude: details.longitude,
+        timezone: details.timezoneOffset,
+      );
+      final division = int.parse(_selectedDivisionalChart.code.substring(1));
+      var response = await _chartApiService.getChartByDivision(
+        apiDetails,
+        division,
+      );
+      if (!response.success || response.svg == null || response.svg!.isEmpty) {
+        _chartApiService.useNextApiKey();
+        response = await _chartApiService.getChartByDivision(
+          apiDetails,
+          division,
+        );
+      }
+      final svg = response.svg;
+
       setState(() {
-        _chartSvg = svg;
         if (svg != null && svg.isNotEmpty) {
           _svgChartCache[requestKey] = svg;
           _extractedChartData = _extractFromSvg(
@@ -299,14 +349,9 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             chartCode: _selectedDivisionalChart.code,
           );
         }
-        _isLoadingSvg = false;
       });
     } catch (e) {
       print("❌ Error loading SVG chart: $e");
-      setState(() {
-        _isLoadingSvg = false;
-        _useSvgChart = false; // Fall back to interactive chart
-      });
     } finally {
       _inFlightSvgRequests.remove(requestKey);
     }
@@ -333,7 +378,8 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     final parsed = SvgChartParser.extractPositions(svg);
     final fallbackAsc =
         ((_session.birthChart?['ascSignIndex'] as int?) ?? 0) + 1;
-    final ascSign = parsed.ascendantSign > 0 ? parsed.ascendantSign : fallbackAsc;
+    final ascSign =
+        parsed.ascendantSign > 0 ? parsed.ascendantSign : fallbackAsc;
     final ascSignName = SvgChartParser.getSignName(ascSign);
 
     final housePlanets = <int, List<String>>{
@@ -349,8 +395,10 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       final api = _apiPlanetaryData?[name] as Map<String, dynamic>?;
       final fullDegreeRaw =
           api?['fullDegree'] ?? api?['full_degree'] ?? api?['longitude'] ?? 0.0;
-      final signDegreeRaw =
-          api?['normDegree'] ?? api?['sign_degree'] ?? api?['norm_degree'] ?? 0.0;
+      final signDegreeRaw = api?['normDegree'] ??
+          api?['sign_degree'] ??
+          api?['norm_degree'] ??
+          0.0;
       final fullDegree = (fullDegreeRaw as num).toDouble();
       final signDegree = (signDegreeRaw as num).toDouble();
 
@@ -371,7 +419,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
           houseNumber: houseNumber,
           fullDegree: fullDegree,
           signDegree: signDegree,
-          isRetrograde: (api?['isRetro'] ?? api?['is_retro'] ?? false) as bool,
+          isRetrograde: _parseBool(api?['isRetro'] ?? api?['is_retro']),
           nakshatra: nakshatra,
           nakshatraPada: nakshatraPada,
           nakshatraLord: api?['nakshatra_lord'],
@@ -394,7 +442,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       extractedAt: DateTime.now(),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return AstroBackground(
@@ -463,7 +511,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _session.hasData 
+                      _session.hasData
                           ? '${_session.birthDetails?.name}\'s Chart'
                           : 'Birth Chart Explorer',
                       style: AstroTheme.headingMedium,
@@ -491,19 +539,15 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     if (!_session.hasData) {
       return _buildNoDataPlaceholder();
     }
-
-    // Convert chart data for display
-    final chartData = _session.birthChart!;
-    // Houses is already a List<List<String>> (0-indexed)
-    final rawHouses = chartData['houses'] as List;
-    final List<List<String>> housesList = rawHouses.map((e) => List<String>.from(e)).toList();
+    final screenHeight = MediaQuery.of(context).size.height;
+    final chartContainerHeight = (screenHeight - 330).clamp(360.0, 500.0);
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Toggle between SVG and Interactive chart
+            // Chart mode + divisional selector
             Row(
               children: [
                 _buildChartTypeToggle(),
@@ -530,37 +574,27 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           child: _showChart
-            ? GradientContainer(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AstroTheme.cardBackground,
-                    AstroTheme.cardBackgroundLight.withOpacity(0.5),
-                  ],
-                ),
-                borderRadius: 20,
-                child: SizedBox(
-                  height: 510,
-                  child: _useSvgChart ? _buildSvgChart() : InteractiveKundaliChart(
-                    houses: housesList,
-                    // Fix: Use signIndex (int) + 1 because widget expects 1-based index (1=Aries)
-                    ascendantSign: (chartData['ascSignIndex'] as int) + 1,
-                    selectedHouse: _selectedHouse,
-                    onHouseChanged: (house) {
-                      setState(() {
-                        _selectedHouse = house;
-                      });
-                    },
+              ? GradientContainer(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AstroTheme.cardBackground,
+                      AstroTheme.cardBackgroundLight.withOpacity(0.5),
+                    ],
                   ),
-                ),
-              )
-            : const SizedBox.shrink(),
+                  borderRadius: 20,
+                  child: SizedBox(
+                    height: chartContainerHeight,
+                    child: _buildSvgChart(),
+                  ),
+                )
+              : const SizedBox.shrink(),
         ),
       ],
     );
   }
-  
+
   /// Divisional chart quick selector for South style
   Widget _buildDivisionalChartSelector() {
     return PopupMenuButton<api.DivisionalChart>(
@@ -589,9 +623,11 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
           },
           child: const Row(
             children: [
-              Icon(Icons.grid_view_rounded, size: 16, color: AstroTheme.accentCyan),
+              Icon(Icons.grid_view_rounded,
+                  size: 16, color: AstroTheme.accentCyan),
               SizedBox(width: 8),
-              Text('View All Charts', style: TextStyle(color: AstroTheme.accentCyan)),
+              Text('View All Charts',
+                  style: TextStyle(color: AstroTheme.accentCyan)),
             ],
           ),
         ),
@@ -615,14 +651,16 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_drop_down, size: 16, color: AstroTheme.accentPurple),
+            const Icon(Icons.arrow_drop_down,
+                size: 16, color: AstroTheme.accentPurple),
           ],
         ),
       ),
     );
   }
-  
-  PopupMenuItem<api.DivisionalChart> _buildDivisionalMenuItem(api.DivisionalChart chart) {
+
+  PopupMenuItem<api.DivisionalChart> _buildDivisionalMenuItem(
+      api.DivisionalChart chart) {
     final isSelected = _selectedDivisionalChart == chart;
     return PopupMenuItem<api.DivisionalChart>(
       value: chart,
@@ -650,7 +688,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   /// API data status indicator
   Widget _buildApiDataIndicator() {
     return GestureDetector(
@@ -698,11 +736,11 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   /// Show dialog with extracted API data
   void _showApiDataDialog() {
     if (_apiPlanetaryData == null && _extractedChartData == null) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -723,11 +761,15 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.green.withOpacity(0.3), Colors.teal.withOpacity(0.2)],
+                          colors: [
+                            Colors.green.withOpacity(0.3),
+                            Colors.teal.withOpacity(0.2)
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.auto_awesome, color: Colors.green, size: 24),
+                      child: const Icon(Icons.auto_awesome,
+                          color: Colors.green, size: 24),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -735,12 +777,16 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                       children: [
                         const Text(
                           'Extracted Chart Data',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
                         ),
                         if (_extractedChartData != null)
                           Text(
                             'Ascendant: ${_extractedChartData!.ascendantSignName}',
-                            style: const TextStyle(color: AstroTheme.accentGold, fontSize: 12),
+                            style: const TextStyle(
+                                color: AstroTheme.accentGold, fontSize: 12),
                           ),
                       ],
                     ),
@@ -752,7 +798,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Tab Bar
                 Container(
                   decoration: BoxDecoration(
@@ -768,12 +814,14 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                     tabs: [
                       Tab(text: 'Planets', icon: Icon(Icons.circle, size: 14)),
                       Tab(text: 'Houses', icon: Icon(Icons.home, size: 14)),
-                      Tab(text: 'Summary', icon: Icon(Icons.list_alt, size: 14)),
+                      Tab(
+                          text: 'Summary',
+                          icon: Icon(Icons.list_alt, size: 14)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                
+
                 // Tab Content
                 Expanded(
                   child: TabBarView(
@@ -791,13 +839,15 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
+
   /// Planets tab in dialog
   Widget _buildDialogPlanetsTab() {
     if (_extractedChartData == null || _extractedChartData!.planets.isEmpty) {
-      return const Center(child: Text('No planet data', style: TextStyle(color: Colors.white54)));
+      return const Center(
+          child:
+              Text('No planet data', style: TextStyle(color: Colors.white54)));
     }
-    
+
     return ListView.builder(
       itemCount: _extractedChartData!.planets.length,
       itemBuilder: (context, index) {
@@ -809,7 +859,9 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: planet.isRetrograde ? Colors.red.withOpacity(0.3) : Colors.transparent,
+              color: planet.isRetrograde
+                  ? Colors.red.withOpacity(0.3)
+                  : Colors.transparent,
             ),
           ),
           child: Row(
@@ -834,7 +886,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                 ),
               ),
               const SizedBox(width: 12),
-              
+
               // Planet details
               Expanded(
                 child: Column(
@@ -844,34 +896,42 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                       children: [
                         Text(
                           planet.name,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         if (planet.isRetrograde)
                           Container(
                             margin: const EdgeInsets.only(left: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               color: Colors.red.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text('R', style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                            child: const Text('R',
+                                style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${planet.sign} • H${planet.houseNumber} • ${planet.signDegree.toStringAsFixed(1)}°',
-                      style: const TextStyle(color: AstroTheme.accentCyan, fontSize: 12),
+                      style: const TextStyle(
+                          color: AstroTheme.accentCyan, fontSize: 12),
                     ),
                     if (planet.nakshatra != null)
                       Text(
                         '${planet.nakshatra} Pada ${planet.nakshatraPada ?? "-"}',
-                        style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11),
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.6), fontSize: 11),
                       ),
                   ],
                 ),
               ),
-              
+
               // House badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -881,7 +941,10 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                 ),
                 child: Text(
                   'H${planet.houseNumber}',
-                  style: const TextStyle(color: AstroTheme.accentPurple, fontWeight: FontWeight.bold, fontSize: 12),
+                  style: const TextStyle(
+                      color: AstroTheme.accentPurple,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12),
                 ),
               ),
             ],
@@ -890,13 +953,15 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       },
     );
   }
-  
+
   /// Houses tab showing planets in each house
   Widget _buildDialogHousesTab() {
     if (_extractedChartData == null) {
-      return const Center(child: Text('No house data', style: TextStyle(color: Colors.white54)));
+      return const Center(
+          child:
+              Text('No house data', style: TextStyle(color: Colors.white54)));
     }
-    
+
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -908,20 +973,19 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       itemBuilder: (context, index) {
         final houseNum = index + 1;
         final planets = _extractedChartData!.getPlanetsInHouse(houseNum);
-        final sign = SvgChartDataExtractor.signs[
-          (_extractedChartData!.ascendantSign + index - 1) % 12
-        ];
-        
+        final sign = SvgChartDataExtractor
+            .signs[(_extractedChartData!.ascendantSign + index - 1) % 12];
+
         return Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: planets.isNotEmpty 
-                ? AstroTheme.accentGold.withOpacity(0.1) 
+            color: planets.isNotEmpty
+                ? AstroTheme.accentGold.withOpacity(0.1)
                 : Colors.white.withOpacity(0.03),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: planets.isNotEmpty 
-                  ? AstroTheme.accentGold.withOpacity(0.3) 
+              color: planets.isNotEmpty
+                  ? AstroTheme.accentGold.withOpacity(0.3)
                   : Colors.white.withOpacity(0.1),
             ),
           ),
@@ -931,7 +995,9 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               Text(
                 'H$houseNum',
                 style: TextStyle(
-                  color: planets.isNotEmpty ? AstroTheme.accentGold : Colors.white54,
+                  color: planets.isNotEmpty
+                      ? AstroTheme.accentGold
+                      : Colors.white54,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
@@ -949,21 +1015,24 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   alignment: WrapAlignment.center,
                   spacing: 2,
                   runSpacing: 2,
-                  children: planets.map((p) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: _getPlanetColor(p.name).withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      p.abbreviation,
-                      style: TextStyle(
-                        color: _getPlanetColor(p.name),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  )).toList(),
+                  children: planets
+                      .map((p) => Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: _getPlanetColor(p.name).withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              p.abbreviation,
+                              style: TextStyle(
+                                color: _getPlanetColor(p.name),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ))
+                      .toList(),
                 )
               else
                 Text(
@@ -976,13 +1045,14 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       },
     );
   }
-  
+
   /// Summary tab with all extracted info
   Widget _buildDialogSummaryTab() {
     if (_extractedChartData == null) {
-      return const Center(child: Text('No data', style: TextStyle(color: Colors.white54)));
+      return const Center(
+          child: Text('No data', style: TextStyle(color: Colors.white54)));
     }
-    
+
     return ListView(
       children: [
         _buildSummaryCard(
@@ -999,41 +1069,51 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
         ),
         _buildSummaryCard(
           'Retrograde Planets',
-          _extractedChartData!.planets.where((p) => p.isRetrograde).map((p) => p.abbreviation).join(', ') ?? 'None',
+          _extractedChartData!.planets
+                  .where((p) => p.isRetrograde)
+                  .map((p) => p.abbreviation)
+                  .join(', ') ??
+              'None',
           Icons.replay,
           Colors.red,
         ),
         const SizedBox(height: 16),
         const Text(
           'Planet Positions',
-          style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         ..._extractedChartData!.planets.map((p) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 60,
-                child: Text(p.name, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 60,
+                    child: Text(p.name,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12)),
+                  ),
+                  Text(
+                    '${p.sign} ${p.signDegree.toStringAsFixed(1)}°',
+                    style: const TextStyle(
+                        color: AstroTheme.accentCyan, fontSize: 12),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'House ${p.houseNumber}',
+                    style: const TextStyle(
+                        color: AstroTheme.accentPurple, fontSize: 12),
+                  ),
+                ],
               ),
-              Text(
-                '${p.sign} ${p.signDegree.toStringAsFixed(1)}°',
-                style: const TextStyle(color: AstroTheme.accentCyan, fontSize: 12),
-              ),
-              const Spacer(),
-              Text(
-                'House ${p.houseNumber}',
-                style: const TextStyle(color: AstroTheme.accentPurple, fontSize: 12),
-              ),
-            ],
-          ),
-        )),
+            )),
       ],
     );
   }
-  
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
+
+  Widget _buildSummaryCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -1048,15 +1128,19 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11)),
-              Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(title,
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.6), fontSize: 11)),
+              Text(value,
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.bold, fontSize: 14)),
             ],
           ),
         ],
       ),
     );
   }
-  
+
   Color _getPlanetColor(String planetName) {
     const colors = {
       'Sun': Colors.orange,
@@ -1071,7 +1155,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     };
     return colors[planetName] ?? Colors.white;
   }
-  
+
   Widget _buildPlanetDetail(String label, String? value) {
     if (value == null || value.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -1079,8 +1163,11 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.6), fontSize: 12)),
+          Text(value,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
         ],
       ),
     );
@@ -1091,7 +1178,12 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     if (!_session.hasData || _session.birthDetails == null) {
       return const SizedBox.shrink();
     }
-    
+    final chartData = _session.birthChart!;
+    final rawHouses = chartData['houses'] as List;
+    final List<List<String>> housesList =
+        rawHouses.map((e) => List<String>.from(e)).toList();
+    final ascSign = ((chartData['ascSignIndex'] as int?) ?? 0) + 1;
+
     final details = _session.birthDetails!;
     // Map to API BirthDetails
     final apiDetails = api.BirthDetails(
@@ -1149,6 +1241,10 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                 birthDetails: apiDetails,
                 chartType: _selectedDivisionalChart,
                 size: 360, // Optimized size for the container
+                fallback: InteractiveKundaliChart(
+                  houses: housesList,
+                  ascendantSign: ascSign,
+                ),
               ),
             ),
           ),
@@ -1157,38 +1253,37 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     );
   }
 
-  /// Toggle between SVG and Interactive chart
+  /// Toggle between South chart mode and divisional gallery
   Widget _buildChartTypeToggle() {
     return PopupMenuButton<ChartStyle>(
       onSelected: (style) {
         setState(() {
           _selectedChartStyle = style;
-          _useSvgChart = style == ChartStyle.southApi;
-          
-          if (style == ChartStyle.southApi && _chartSvg == null) {
+
+          if (style == ChartStyle.southApi) {
             _loadChartSvg();
           }
-          
+
           if (style == ChartStyle.divisional) {
             // Navigate to gallery
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ChartGalleryScreen()),
             );
-            // Reset to previous style
-            _selectedChartStyle = _useSvgChart ? ChartStyle.southApi : ChartStyle.northInteractive;
+            // Keep this screen in South API mode after opening gallery
+            _selectedChartStyle = ChartStyle.southApi;
           }
         });
       },
       itemBuilder: (context) => [
-        _buildChartStyleMenuItem(ChartStyle.northInteractive, Icons.touch_app),
         _buildChartStyleMenuItem(ChartStyle.southApi, Icons.api),
-        _buildChartStyleMenuItem(ChartStyle.divisional, Icons.grid_view_rounded),
+        _buildChartStyleMenuItem(
+            ChartStyle.divisional, Icons.grid_view_rounded),
       ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          gradient: _selectedChartStyle == ChartStyle.southApi 
+          gradient: _selectedChartStyle == ChartStyle.southApi
               ? LinearGradient(
                   colors: [
                     AstroTheme.accentCyan.withOpacity(0.2),
@@ -1196,12 +1291,12 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   ],
                 )
               : null,
-          color: _selectedChartStyle != ChartStyle.southApi 
-              ? AstroTheme.cardBackground 
+          color: _selectedChartStyle != ChartStyle.southApi
+              ? AstroTheme.cardBackground
               : null,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _selectedChartStyle == ChartStyle.southApi 
+            color: _selectedChartStyle == ChartStyle.southApi
                 ? AstroTheme.accentCyan.withOpacity(0.5)
                 : Colors.white.withOpacity(0.1),
           ),
@@ -1222,11 +1317,11 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               const SizedBox(width: 6),
             ],
             Icon(
-              _selectedChartStyle == ChartStyle.southApi 
-                  ? Icons.api 
-                  : Icons.touch_app,
+              _selectedChartStyle == ChartStyle.southApi
+                  ? Icons.api
+                  : Icons.grid_view_rounded,
               size: 14,
-              color: _selectedChartStyle == ChartStyle.southApi 
+              color: _selectedChartStyle == ChartStyle.southApi
                   ? AstroTheme.accentCyan
                   : AstroTheme.accentGold,
             ),
@@ -1234,7 +1329,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             Text(
               _selectedChartStyle.label,
               style: TextStyle(
-                color: _selectedChartStyle == ChartStyle.southApi 
+                color: _selectedChartStyle == ChartStyle.southApi
                     ? AstroTheme.accentCyan
                     : Colors.white70,
                 fontSize: 11,
@@ -1245,7 +1340,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             Icon(
               Icons.arrow_drop_down,
               size: 16,
-              color: _selectedChartStyle == ChartStyle.southApi 
+              color: _selectedChartStyle == ChartStyle.southApi
                   ? AstroTheme.accentCyan
                   : Colors.white54,
             ),
@@ -1254,11 +1349,12 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       ),
     );
   }
-  
-  PopupMenuItem<ChartStyle> _buildChartStyleMenuItem(ChartStyle style, IconData icon) {
+
+  PopupMenuItem<ChartStyle> _buildChartStyleMenuItem(
+      ChartStyle style, IconData icon) {
     final isSelected = _selectedChartStyle == style;
     final isServerRequired = style == ChartStyle.southApi;
-    
+
     return PopupMenuItem<ChartStyle>(
       value: style,
       child: Row(
@@ -1278,7 +1374,8 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   style.label,
                   style: TextStyle(
                     color: isSelected ? AstroTheme.accentGold : Colors.white,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
                 Text(
@@ -1296,7 +1393,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: _isApiServerAvailable 
+                color: _isApiServerAvailable
                     ? Colors.green.withOpacity(0.2)
                     : Colors.red.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
@@ -1337,13 +1434,13 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-             Icon(
+            Icon(
               Icons.grid_view_rounded,
               size: 14,
               color: AstroTheme.accentCyan,
             ),
-             SizedBox(width: 6),
-             Text(
+            SizedBox(width: 6),
+            Text(
               'Divisional',
               style: TextStyle(
                 color: AstroTheme.accentCyan,
@@ -1399,7 +1496,8 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               backgroundColor: AstroTheme.accentGold,
               foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('CALCULATE NOW'),
           ),
@@ -1440,6 +1538,16 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     );
   }
 
+  /// Find extracted planet data by matching name
+  ExtractedPlanet? _findExtractedPlanet(String planetName) {
+    if (_extractedChartData == null) return null;
+    final lowerName = planetName.toLowerCase();
+    for (final p in _extractedChartData!.planets) {
+      if (p.name.toLowerCase() == lowerName) return p;
+    }
+    return null;
+  }
+
   Widget _buildPlanetsTab() {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
@@ -1447,7 +1555,8 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       itemBuilder: (context, index) {
         final planet = AstroData.planets[index];
         final color = AstroTheme.getPlanetColor(planet.id);
-        
+        final extracted = _findExtractedPlanet(planet.name);
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: AstroCard(
@@ -1467,105 +1576,187 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: color.withOpacity(0.5),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
+                    Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
                             color: color.withOpacity(0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: color.withOpacity(0.5),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          planet.symbol,
-                          style: TextStyle(
-                            fontSize: 32,
-                            color: color,
+                          child: Center(
+                            child: Text(
+                              planet.symbol,
+                              style: TextStyle(
+                                fontSize: 28,
+                                color: color,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                planet.name,
-                                style: AstroTheme.headingSmall,
+                              Row(
+                                children: [
+                                  Text(
+                                    planet.name,
+                                    style: AstroTheme.headingSmall,
+                                  ),
+                                  if (extracted?.isRetrograde == true)
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                            color: Colors.red.withOpacity(0.4)),
+                                      ),
+                                      child: const Text('R',
+                                          style: TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                  const Spacer(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black26,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.white10,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      planet.nature.split(' ')[0],
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black26,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: Colors.white10,
-                                  ),
-                                ),
-                                child: Text(
-                                  planet.nature.split(' ')[0],
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white70,
-                                  ),
+                              const SizedBox(height: 2),
+                              Text(
+                                planet.sanskritName,
+                                style: AstroTheme.bodyMedium.copyWith(
+                                  color: color.withOpacity(0.8),
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            planet.sanskritName,
-                            style: AstroTheme.bodyMedium.copyWith(
-                              color: color.withOpacity(0.8),
-                              fontWeight: FontWeight.w500,
+                        ),
+                      ],
+                    ),
+                    // --- Chart Position Data ---
+                    if (extracted != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(10),
+                          border:
+                              Border.all(color: Colors.white.withOpacity(0.06)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                _buildChartInfoChip(Icons.auto_awesome,
+                                    extracted.sign, AstroTheme.accentGold),
+                                const SizedBox(width: 8),
+                                _buildChartInfoChip(
+                                    Icons.home_outlined,
+                                    'House ${extracted.houseNumber}',
+                                    AstroTheme.accentPurple),
+                                const SizedBox(width: 8),
+                                _buildChartInfoChip(
+                                    Icons.my_location,
+                                    '${extracted.signDegree.toStringAsFixed(2)}°',
+                                    AstroTheme.accentCyan),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: planet.karakas.take(3).map((karaka) {
-                                return Container(
-                                  margin: const EdgeInsets.only(right: 8),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    karaka.split(' ')[0], // Shorten for chips
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: color.withOpacity(0.9),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                if (extracted.nakshatra != null)
+                                  _buildChartInfoChip(
+                                      Icons.star_outline,
+                                      '${extracted.nakshatra} Pada ${extracted.nakshatraPada ?? "-"}',
+                                      Colors.amber),
+                                if (extracted.nakshatraLord != null) ...[
+                                  const SizedBox(width: 8),
+                                  _buildChartInfoChip(
+                                      Icons.person_outline,
+                                      'Lord: ${extracted.nakshatraLord}',
+                                      Colors.tealAccent),
+                                ],
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                _buildChartInfoChip(
+                                    Icons.explore_outlined,
+                                    '${extracted.fullDegree.toStringAsFixed(4)}° Abs',
+                                    Colors.white54),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    // --- Karakas ---
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: planet.karakas.take(3).map((karaka) {
+                          return Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              karaka.split(' ')[0],
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: color.withOpacity(0.9),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ],
@@ -1578,12 +1769,49 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildChartInfoChip(IconData icon, String text, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(
+                    fontSize: 10, color: color, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHousesTab() {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: AstroData.houses.length,
       itemBuilder: (context, index) {
         final house = AstroData.houses[index];
+        final planetsInHouse =
+            _extractedChartData?.getPlanetsInHouse(house.number) ?? [];
+        // Compute the sign for this house if chart data is available
+        String? houseSign;
+        if (_extractedChartData != null) {
+          final signIndex =
+              (_extractedChartData!.ascendantSign + house.number - 2) % 12;
+          houseSign = SvgChartDataExtractor.signs[signIndex];
+        }
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: AstroCard(
@@ -1628,14 +1856,35 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                           children: [
                             Text(
                               house.name,
-                              style: AstroTheme.headingSmall.copyWith(fontSize: 16),
+                              style: AstroTheme.headingSmall
+                                  .copyWith(fontSize: 16),
                             ),
-                            Text(
-                              house.sanskritName,
-                              style: AstroTheme.bodyMedium.copyWith(
-                                color: AstroTheme.accentGold,
-                                fontSize: 12,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  house.sanskritName,
+                                  style: AstroTheme.bodyMedium.copyWith(
+                                    color: AstroTheme.accentGold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                if (houseSign != null) ...[
+                                  Text(
+                                    ' • ',
+                                    style: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                        fontSize: 12),
+                                  ),
+                                  Text(
+                                    houseSign,
+                                    style: const TextStyle(
+                                      color: AstroTheme.accentCyan,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -1648,15 +1897,74 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                // --- Planets in this house ---
+                if (planetsInHouse.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AstroTheme.accentGold.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: AstroTheme.accentGold.withOpacity(0.15)),
+                    ),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: planetsInHouse.map((p) {
+                        final pColor = _getPlanetColor(p.name);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: pColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: pColor.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                p.name,
+                                style: TextStyle(
+                                    color: pColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${p.signDegree.toStringAsFixed(1)}°',
+                                style: TextStyle(
+                                    color: pColor.withOpacity(0.7),
+                                    fontSize: 10),
+                              ),
+                              if (p.isRetrograde)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 3),
+                                  child: Text('R',
+                                      style: TextStyle(
+                                          color: Colors.red.shade300,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
                 Divider(color: Colors.white.withOpacity(0.05)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: house.lifeAreas.take(3).map((area) {
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(20),
@@ -1687,7 +1995,13 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       itemBuilder: (context, index) {
         final sign = AstroData.signs[index];
         final elementColor = _getElementColor(sign.element);
-        
+        // Find planets in this sign from extracted chart data
+        final signNumber = index + 1; // Signs are 1-indexed (Aries=1, etc.)
+        final planetsInSign = _extractedChartData?.planets
+                .where((p) => p.signNumber == signNumber)
+                .toList() ??
+            [];
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: AstroCard(
@@ -1703,76 +2017,130 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Stack(
-                      alignment: Alignment.center,
+                    Row(
                       children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: elementColor.withOpacity(0.1),
-                          ),
-                        ),
-                        Text(
-                          sign.symbol,
-                          style: TextStyle(
-                            fontSize: 26,
-                            color: elementColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                sign.name,
-                                style: AstroTheme.headingSmall,
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: elementColor.withOpacity(0.1),
                               ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
+                            ),
+                            Text(
+                              sign.symbol,
+                              style: TextStyle(
+                                fontSize: 26,
+                                color: elementColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    sign.name,
+                                    style: AstroTheme.headingSmall,
                                   ),
-                                decoration: BoxDecoration(
-                                  color: elementColor.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  sign.element.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: elementColor,
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: elementColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      sign.element.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: elementColor,
+                                      ),
+                                    ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${sign.sanskritName} • Ruled by ${sign.rulingPlanet}',
+                                style: AstroTheme.bodyMedium.copyWith(
+                                  color: Colors.white60,
+                                  fontSize: 13,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${sign.sanskritName} • Ruled by ${sign.rulingPlanet}',
-                            style: AstroTheme.bodyMedium.copyWith(
-                              color: Colors.white60,
-                              fontSize: 13,
+                        ),
+                        Icon(
+                          Icons.north_east_rounded,
+                          color: Colors.white24,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                    // --- Planets in this sign ---
+                    if (planetsInSign.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: planetsInSign.map((p) {
+                          final pColor = _getPlanetColor(p.name);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: pColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border:
+                                  Border.all(color: pColor.withOpacity(0.25)),
                             ),
-                          ),
-                        ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: TextStyle(
+                                      color: pColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${p.signDegree.toStringAsFixed(1)}° • H${p.houseNumber}',
+                                  style: TextStyle(
+                                      color: pColor.withOpacity(0.7),
+                                      fontSize: 10),
+                                ),
+                                if (p.isRetrograde)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 3),
+                                    child: Text('R',
+                                        style: TextStyle(
+                                            color: Colors.red.shade300,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
                       ),
-                    ),
-                    Icon(
-                      Icons.north_east_rounded,
-                      color: Colors.white24,
-                      size: 20,
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -1827,7 +2195,7 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
       builder: (context, constraints) {
         // Show only icon on very small screens
         final showText = MediaQuery.of(context).size.width > 360;
-        
+
         return GestureDetector(
           onTap: () {
             setState(() {
@@ -1840,14 +2208,14 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
               vertical: 8,
             ),
             decoration: BoxDecoration(
-              color: _showChart 
-                ? AstroTheme.accentCyan.withOpacity(0.15)
-                : AstroTheme.cardBackground,
+              color: _showChart
+                  ? AstroTheme.accentCyan.withOpacity(0.15)
+                  : AstroTheme.cardBackground,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: _showChart
-                  ? AstroTheme.accentCyan.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.1),
+                    ? AstroTheme.accentCyan.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.1),
               ),
             ),
             child: Row(
@@ -1863,7 +2231,8 @@ class _ChartScreenState extends State<ChartScreen> with SingleTickerProviderStat
                   Text(
                     _showChart ? 'Hide' : 'Show',
                     style: TextStyle(
-                      color: _showChart ? AstroTheme.accentCyan : Colors.white54,
+                      color:
+                          _showChart ? AstroTheme.accentCyan : Colors.white54,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),

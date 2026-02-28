@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/services/chart_api_service.dart';
+import '../../../core/services/direct_svg_chart_service.dart';
 
 /// Helper function to preprocess SVG for crisp rendering
 /// Fixes common SVG issues for flutter_svg compatibility
@@ -50,13 +53,22 @@ String preprocessSvg(String svg) {
   return svg;
 }
 
-/// Widget that displays SVG charts from the Free Astrology API via Flask backend
+bool isRenderableSvgForDisplay(String? svg) {
+  if (!DirectSvgChartService.isRenderableSvg(svg)) {
+    return false;
+  }
+  final processed = preprocessSvg(svg!);
+  return DirectSvgChartService.isRenderableSvg(processed);
+}
+
+/// Widget that displays SVG charts fetched directly in Dart.
 class SvgChartViewer extends StatefulWidget {
   final BirthDetails birthDetails;
   final DivisionalChart chartType;
   final double size;
   final bool showLoading;
   final bool showTitle;
+  final Widget? fallback;
 
   const SvgChartViewer({
     super.key,
@@ -65,6 +77,7 @@ class SvgChartViewer extends StatefulWidget {
     this.size = 350,
     this.showLoading = true,
     this.showTitle = false,
+    this.fallback,
   });
 
   @override
@@ -78,7 +91,7 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
   String? _chartName;
   bool _isLoading = true;
   String? _error;
-  bool _isServerAvailable = false;
+  bool _isApiReady = false;
 
   double get _alignedSize => widget.size.floorToDouble();
 
@@ -101,7 +114,7 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
   Future<void> _checkServerAndLoadChart() async {
     final isAvailable = await _apiService.healthCheck();
     setState(() {
-      _isServerAvailable = isAvailable;
+      _isApiReady = isAvailable;
     });
 
     if (isAvailable) {
@@ -109,8 +122,7 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
     } else {
       setState(() {
         _isLoading = false;
-        _error = 'Chart server is not running.\n'
-            'Start with: python backend/app.py';
+        _error = 'Unable to initialize chart API service.';
       });
     }
   }
@@ -123,20 +135,26 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
       _error = null;
     });
 
-    final response = await _apiService.getChartByDivision(
-      widget.birthDetails,
-      int.parse(widget.chartType.code.substring(1)), // Extract number from "D9"
-    );
+    final division = int.parse(widget.chartType.code.substring(1));
+    ChartResponse response =
+        await _apiService.getChartByDivision(widget.birthDetails, division);
+
+    var svg = response.svg;
+    if (!(response.success && isRenderableSvgForDisplay(svg))) {
+      _apiService.useNextApiKey();
+      response = await _apiService.getChartByDivision(widget.birthDetails, division);
+      svg = response.svg;
+    }
 
     if (!mounted) return;
     
     setState(() {
       _isLoading = false;
-      if (response.success && response.svg != null) {
-        _svgContent = response.svg;
+      if (response.success && isRenderableSvgForDisplay(svg)) {
+        _svgContent = preprocessSvg(svg!);
         _chartName = response.name ?? widget.chartType.name;
       } else {
-        _error = response.error ?? 'Failed to generate chart';
+        _error = response.error ?? 'Failed to generate renderable SVG chart';
       }
     });
   }
@@ -149,36 +167,53 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.showTitle && _chartName != null) ...[
-          Text(
-            _chartName!,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-        if (_isLoading && widget.showLoading)
-          _buildLoadingState()
-        else if (_error != null)
-          _buildErrorState()
-        else if (_svgContent != null)
-          _buildChartView()
-        else
-          const SizedBox.shrink(),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasTitle = widget.showTitle && _chartName != null;
+        final availableWidth =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : _alignedSize;
+        final availableHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight - (hasTitle ? 28.0 : 0.0)
+            : _alignedSize;
+        final boxSize = math.max(
+          120.0,
+          math.min(_alignedSize, math.min(availableWidth, availableHeight)),
+        );
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasTitle) ...[
+              Text(
+                _chartName!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (_isLoading && widget.showLoading)
+              _buildLoadingState(boxSize)
+            else if (_error != null && widget.fallback != null)
+              _buildFallbackState(boxSize)
+            else if (_error != null)
+              _buildErrorState(boxSize)
+            else if (_svgContent != null)
+              _buildChartView(boxSize)
+            else
+              const SizedBox.shrink(),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildLoadingState(double size) {
     return Container(
-      width: _alignedSize,
-      height: _alignedSize,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: const Color(0xFF16213e),
         borderRadius: BorderRadius.circular(12),
@@ -208,10 +243,10 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(double size) {
     return Container(
-      width: _alignedSize,
-      height: _alignedSize,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: const Color(0xFF16213e),
         borderRadius: BorderRadius.circular(12),
@@ -224,7 +259,7 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                _isServerAvailable ? Icons.error_outline : Icons.cloud_off,
+                _isApiReady ? Icons.error_outline : Icons.cloud_off,
                 color: Colors.orange,
                 size: 40,
               ),
@@ -261,10 +296,10 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
     );
   }
 
-  Widget _buildChartView() {
+  Widget _buildChartView(double size) {
     return Container(
-      width: _alignedSize,
-      height: _alignedSize,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: const Color(0xFF0F1A3A),
         borderRadius: BorderRadius.circular(12),
@@ -277,10 +312,29 @@ class _SvgChartViewerState extends State<SvgChartViewer> {
         borderRadius: BorderRadius.circular(12),
         child: SvgPicture.string(
           preprocessSvg(_svgContent!),
-          width: _alignedSize,
-          height: _alignedSize,
+          width: size,
+          height: size,
           fit: BoxFit.contain,
         ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackState(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1A3A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF9D4EDD).withOpacity(0.35),
+          width: 1.0,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: widget.fallback!,
       ),
     );
   }
@@ -415,6 +469,8 @@ class _DivisionalChartsGridState extends State<DivisionalChartsGrid> {
   }
 
   Widget _buildChartCard(String chartCode, ChartData chartData) {
+    final processedSvg = preprocessSvg(chartData.svg);
+    final renderable = isRenderableSvgForDisplay(processedSvg);
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF16213e),
@@ -442,10 +498,17 @@ class _DivisionalChartsGridState extends State<DivisionalChartsGrid> {
               padding: const EdgeInsets.all(4),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SvgPicture.string(
-                  preprocessSvg(chartData.svg),
-                  fit: BoxFit.contain,
-                ),
+                child: renderable
+                    ? SvgPicture.string(
+                        processedSvg,
+                        fit: BoxFit.contain,
+                      )
+                    : const Center(
+                        child: Text(
+                          'Invalid SVG',
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -568,6 +631,8 @@ class _HorizontalChartViewerState extends State<HorizontalChartViewer> {
         itemCount: _charts!.length,
         itemBuilder: (context, index) {
           final entry = _charts!.entries.elementAt(index);
+          final processedSvg = preprocessSvg(entry.value.svg);
+          final renderable = isRenderableSvgForDisplay(processedSvg);
           return Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Column(
@@ -591,16 +656,23 @@ class _HorizontalChartViewerState extends State<HorizontalChartViewer> {
                       color: const Color(0xFF9D4EDD).withOpacity(0.35),
                     ),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SvgPicture.string(
-                      preprocessSvg(entry.value.svg),
-                      width: widget.chartSize,
-                      height: widget.chartSize,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
+                   child: ClipRRect(
+                     borderRadius: BorderRadius.circular(12),
+                     child: renderable
+                         ? SvgPicture.string(
+                             processedSvg,
+                             width: widget.chartSize,
+                             height: widget.chartSize,
+                             fit: BoxFit.contain,
+                           )
+                         : const Center(
+                             child: Text(
+                               'Invalid SVG',
+                               style: TextStyle(color: Colors.white54, fontSize: 12),
+                             ),
+                           ),
+                   ),
+                 ),
               ],
             ),
           );

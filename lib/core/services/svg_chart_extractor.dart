@@ -177,16 +177,22 @@ class ChartConstants {
 
   static const List<String> nakshatras = [
     'Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra',
-    'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni',
+    'Punarvasu', 'Pushya', 'Ashlesha', 
+    
+    'Magha', 'Purva Phalguni', 'Uttara Phalguni',
     'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
+
     'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
     'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'
   ];
 
   static const List<String> nakshatraLords = [
     'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu',
-    'Jupiter', 'Saturn', 'Mercury', 'Ketu', 'Venus', 'Sun',
+    'Jupiter', 'Saturn', 'Mercury', 
+
+    'Ketu', 'Venus', 'Sun',
     'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury',
+
     'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu',
     'Jupiter', 'Saturn', 'Mercury'
   ];
@@ -333,8 +339,11 @@ class ApiChartExtractor {
         final signNum = planetData['current_sign'] as int? ?? 
                         planetData['sign_num'] as int? ?? 
                         ChartStateBuilder.getSignFromDegree(fullDegree.toDouble());
-        final isRetro = planetData['isRetro'] as bool? ?? 
-                        planetData['is_retro'] as bool? ?? false;
+        final isRetro = _parseBool(
+          planetData['isRetro'] ??
+              planetData['is_retro'] ??
+              planetData['isRetrograde'],
+        );
 
         // Get abbreviation
         final abbr = ChartConstants.nameToAbbr[name] ?? name.substring(0, 2);
@@ -376,6 +385,29 @@ class ApiChartExtractor {
       planets: planets,
       chartType: chartType,
     );
+  }
+
+  static bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized.isEmpty ||
+          normalized == 'null') {
+        return false;
+      }
+    }
+    return fallback;
   }
 }
 

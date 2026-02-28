@@ -7,6 +7,8 @@ import '../../features/daily/screens/day_ahead_screen.dart';
 import '../../features/roadmap/screens/achievements_screen.dart';
 import '../../features/calculator/screens/birth_details_screen.dart';
 import '../../features/relationship/screens/relationship_report_screen.dart';
+import '../../features/settings/screens/notification_settings_screen.dart';
+import '../../features/settings/screens/notification_test_screen.dart';
 import '../../core/services/user_session.dart';
 import '../../core/services/gamification_service.dart';
 import 'level_progress_bar.dart';
@@ -133,6 +135,16 @@ class _AppDrawerState extends State<AppDrawer> {
                 Navigator.pushNamed(context, '/chart-demo');
               },
             ),
+            _buildActionItem(
+              context,
+              icon: Icons.table_chart_rounded,
+              label: 'Divisional Charts Reference',
+              color: AstroTheme.accentGold,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/divisional-charts-table');
+              },
+            ),
 
             const Divider(color: Colors.white12, height: 32),
 
@@ -175,6 +187,23 @@ class _AppDrawerState extends State<AppDrawer> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BirthDetailsScreen()),
+                );
+              },
+            ),
+
+            // Notification Settings
+            _buildActionItem(
+              context,
+              icon: Icons.notifications_rounded,
+              label: 'Notification Settings',
+              color: const Color(0xFF7B61FF),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationSettingsScreen(),
+                  ),
                 );
               },
             ),
@@ -636,39 +665,25 @@ class _AppDrawerState extends State<AppDrawer> {
           color: Colors.deepPurple.withOpacity(0.15),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Icon(Icons.notifications_active,
+        child: const Icon(Icons.science_rounded,
             color: Colors.deepPurple, size: 20),
       ),
       title: const Text(
-        'Test Notification',
+        'Test All Notifications',
         style: TextStyle(color: Colors.white70, fontSize: 15),
       ),
       subtitle: const Text(
-        'Fire a test device notification',
+        'Open notification testing lab',
         style: TextStyle(color: Colors.white38, fontSize: 11),
       ),
+      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      onTap: () async {
-        await LocalNotificationService().showNow(
-          title: '🔔 AstroLearn Notification Test',
-          body: 'Your cosmic notifications are working! ✨🌟',
-          payload: 'test',
-        );
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 18),
-                SizedBox(width: 10),
-                Text('Notification sent! Check your tray 🔔'),
-              ],
-            ),
-            backgroundColor: Colors.deepPurple,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 3),
+      onTap: () {
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => NotificationTestScreen(),
           ),
         );
       },

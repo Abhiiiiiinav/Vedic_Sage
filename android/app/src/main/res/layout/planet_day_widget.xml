@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/pod_emoji"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🪐"
+        android:textSize="28sp" />
+
+    <TextView
+        android:id="@+id/pod_planet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="#FFF5A623"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <View
+        android:layout_width="30dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:background="#1AFFFFFF" />
+
+    <TextView
+        android:id="@+id/pod_theme"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cosmic Energy"
+        android:textColor="#99FFFFFF"
+        android:textSize="10sp"
+        android:gravity="center" />
+
+</LinearLayout>

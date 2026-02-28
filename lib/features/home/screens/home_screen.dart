@@ -29,6 +29,7 @@ import '../../roadmap/screens/achievements_screen.dart';
 import '../../friends/screens/friends_screen.dart';
 import '../../pet/screens/cosmic_pet_screen.dart';
 import '../../realm/screens/realm_map_screen.dart';
+import '../../yogas/screens/yoga_screen.dart';
 import '../../../core/services/daily_tasks_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -321,6 +322,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: gap),
+
+          // ─── Row 3.5: Yogas (hero full-width) ───
+          SizedBox(
+            height: 140,
+            child: BentoTile(
+              title: 'Special Yogas',
+              subtitle: 'Auspicious & inauspicious combinations',
+              icon: Icons.auto_awesome_rounded,
+              accentColor: const Color(0xFFf5a623),
+              size: BentoTileSize.hero,
+              onTap: () => _push(context, const YogaScreen()),
             ),
           ),
           const SizedBox(height: gap),

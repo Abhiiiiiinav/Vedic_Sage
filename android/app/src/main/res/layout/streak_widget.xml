@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- Flame emoji -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔥"
+        android:textSize="28sp" />
+
+    <!-- Streak number -->
+    <TextView
+        android:id="@+id/streak_count"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0"
+        android:textColor="#FFF5A623"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="day streak"
+        android:textColor="#80FFFFFF"
+        android:textSize="10sp" />
+
+    <View
+        android:layout_width="30dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp"
+        android:background="#1AFFFFFF" />
+
+    <!-- XP + Level -->
+    <TextView
+        android:id="@+id/streak_xp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0 XP"
+        android:textColor="#FF7B61FF"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/streak_level"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Lv. 1"
+        android:textColor="#80FFFFFF"
+        android:textSize="10sp" />
+
+</LinearLayout>

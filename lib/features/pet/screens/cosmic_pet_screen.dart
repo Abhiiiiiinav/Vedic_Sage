@@ -7,6 +7,10 @@ import '../../../core/astro/daily_swot_engine.dart';
 import '../../../core/services/panchang_service.dart';
 import '../../../core/services/pet_state_service.dart';
 import '../../../core/services/user_session.dart';
+import '../../../core/services/share_card_service.dart';
+import '../../../shared/widgets/swot_share_card.dart';
+import '../../../shared/widgets/cosmic_pet_share_card.dart';
+import '../../../shared/widgets/user_code_share_card.dart';
 
 /// Cosmic Pet Dashboard — Main Screen
 ///
@@ -28,6 +32,7 @@ class _CosmicPetScreenState extends State<CosmicPetScreen>
   Map<String, dynamic> _panchangData = {};
   bool _isLoading = true;
   String? _error;
+  bool _isSharing = false;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -180,6 +185,243 @@ class _CosmicPetScreenState extends State<CosmicPetScreen>
     });
   }
 
+  // ════════════════════════════════════════════════════════════
+  // SHARE SYSTEM
+  // ════════════════════════════════════════════════════════════
+
+  void _showShareSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AstroTheme.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Share Your Cosmic Profile',
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose a card to share',
+              style: GoogleFonts.quicksand(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            _shareOption(
+              emoji: '📊',
+              title: 'Daily SWOT',
+              subtitle:
+                  'Share your Strengths, Weaknesses, Opportunities & Threats',
+              color: AstroTheme.accentGreen,
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureAndShareCard('swot');
+              },
+            ),
+            const SizedBox(height: 10),
+            _shareOption(
+              emoji: _pet?.temperament.petEmoji ?? '🐉',
+              title: 'Cosmic Pet',
+              subtitle: 'Share your pet profile, mood & vitality',
+              color: AstroTheme.accentPurple,
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureAndShareCard('pet');
+              },
+            ),
+            const SizedBox(height: 10),
+            _shareOption(
+              emoji: '🌟',
+              title: 'Your Cosmic Code',
+              subtitle: 'Share your chart placements & element balance',
+              color: AstroTheme.accentGold,
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureAndShareCard('code');
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shareOption({
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.quicksand(
+                      color: Colors.white54,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.share_rounded, color: color, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _captureAndShareCard(String type) async {
+    if (_isSharing) return;
+    setState(() => _isSharing = true);
+
+    // Build the share card widget
+    Widget card;
+    String fileName;
+    String shareText;
+
+    final session = UserSession();
+
+    switch (type) {
+      case 'swot':
+        if (_swot == null) {
+          _showShareError('SWOT data not available');
+          return;
+        }
+        card = SWOTShareCard(
+          swot: _swot!,
+          userName: session.birthDetails?.name ?? 'Cosmic Traveler',
+        );
+        fileName = 'astrolearn_swot';
+        shareText = 'My Cosmic SWOT for today ✨ #AstroLearn #CosmicSWOT';
+        break;
+      case 'pet':
+        if (_pet == null) {
+          _showShareError('Pet data not available');
+          return;
+        }
+        card = CosmicPetShareCard(pet: _pet!);
+        fileName = 'astrolearn_pet';
+        shareText =
+            'Meet my Cosmic Pet: ${_pet!.name} ${_pet!.temperament.petEmoji} #AstroLearn';
+        break;
+      case 'code':
+        if (session.birthChart == null) {
+          _showShareError('Chart data not available');
+          return;
+        }
+        card = UserCodeShareCard(
+          chartData: session.birthChart!,
+          userName: session.birthDetails?.name ?? 'Cosmic Traveler',
+        );
+        fileName = 'astrolearn_code';
+        shareText = 'My Cosmic Code 🌟 #AstroLearn #VedicAstrology';
+        break;
+      default:
+        setState(() => _isSharing = false);
+        return;
+    }
+
+    // Render off-screen using OverlayEntry
+    final overlayState = Overlay.of(context);
+    final shareKey = GlobalKey();
+
+    final entry = OverlayEntry(
+      builder: (_) => Positioned(
+        left: -9999,
+        top: -9999,
+        child: RepaintBoundary(
+          key: shareKey,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: Material(
+              color: Colors.transparent,
+              child: card,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlayState.insert(entry);
+
+    // Wait for render
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    try {
+      final success = await ShareCardService.instance.captureAndShare(
+        shareKey,
+        fileName: fileName,
+        shareText: shareText,
+      );
+
+      if (!success && mounted) {
+        _showShareError('Failed to create share card');
+      }
+    } finally {
+      entry.remove();
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  void _showShareError(String message) {
+    setState(() => _isSharing = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -245,6 +487,13 @@ class _CosmicPetScreenState extends State<CosmicPetScreen>
             ),
           ),
           actions: [
+            // Share button
+            IconButton(
+              icon: const Icon(Icons.share_rounded,
+                  color: Colors.white70, size: 22),
+              onPressed: _pet != null ? _showShareSheet : null,
+              tooltip: 'Share',
+            ),
             // Level badge
             Container(
               margin: const EdgeInsets.only(right: 16),

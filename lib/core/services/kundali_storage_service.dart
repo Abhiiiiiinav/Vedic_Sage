@@ -30,7 +30,7 @@ class KundaliStorageService {
   })  : _chartApi = chartApi ?? ChartApiService(),
         _db = db ?? HiveDatabaseService();
 
-  /// Fetch full kundali data from backend, calculate karakas, and store in Hive
+  /// Fetch full kundali data via Dart services, calculate karakas, and store in Hive
   ///
   /// [divisions] - List of divisions to fetch (e.g. ['d1', 'd9', 'd10']).
   ///               If null, fetches all available divisions.
@@ -45,7 +45,7 @@ class KundaliStorageService {
   }) async {
     print('📿 Fetching full kundali for: $name');
 
-    // 1. Call the /kundali/full endpoint
+    // 1. Build full kundali data in Dart
     final response = await _chartApi.fetchFullKundali(
       year: dateOfBirth.year,
       month: dateOfBirth.month,
@@ -96,7 +96,11 @@ class KundaliStorageService {
       final planetData = entry.value as Map<String, dynamic>;
       planetDegrees[entry.key] =
           (planetData['fullDegree'] as num?)?.toDouble() ?? 0.0;
-      planetRetrogrades[entry.key] = planetData['isRetro'] as bool? ?? false;
+      planetRetrogrades[entry.key] = _parseBool(
+        planetData['isRetro'] ??
+            planetData['is_retro'] ??
+            planetData['isRetrograde'],
+      );
     }
 
     // 6. Build per-division planet signs
@@ -268,5 +272,28 @@ class KundaliStorageService {
     final updated = record.copyWith(karakas: newKarakas);
     await _db.updateKundaliRecord(updated);
     return _db.getKundaliRecord(recordId);
+  }
+
+  bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized.isEmpty ||
+          normalized == 'null') {
+        return false;
+      }
+    }
+    return fallback;
   }
 }

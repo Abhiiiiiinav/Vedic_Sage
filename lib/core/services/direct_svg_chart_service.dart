@@ -99,7 +99,8 @@ class DirectSvgChartService {
 
     if (useStoredCache) {
       final cached = await loadStoredChart(chartId);
-      if (cached != null) {
+      final cachedSvg = cached?['svg']?.toString();
+      if (cached != null && isRenderableSvg(cachedSvg)) {
         return {
           ...cached,
           'cached': true,
@@ -128,7 +129,7 @@ class DirectSvgChartService {
         if (response.statusCode == 200) {
           final svg = _extractSvg(response.body);
           if (svg == null) {
-            lastError = 'SVG not found in API response';
+            lastError = 'SVG not found or not renderable in API response';
             lastDetails = _truncate(response.body);
             continue;
           }
@@ -280,7 +281,8 @@ class DirectSvgChartService {
     }
 
     final svg = _findSvgInNode(decoded);
-    return svg == null ? null : _sliceSvg(svg);
+    if (svg == null) return null;
+    return _sliceSvg(svg);
   }
 
   String? _findSvgInNode(dynamic node) {
@@ -331,16 +333,28 @@ class DirectSvgChartService {
 
     final endTag = '</svg>';
     final end = text.lastIndexOf(endTag);
-    if (end >= 0 && end + endTag.length > start) {
-      return text.substring(start, end + endTag.length).trim();
+    if (end < 0 || end + endTag.length <= start) {
+      return null;
     }
 
-    return text.substring(start).trim();
+    final candidate = text.substring(start, end + endTag.length).trim();
+    return isRenderableSvg(candidate) ? candidate : null;
   }
 
   String _truncate(String input, {int maxLength = 600}) {
     if (input.length <= maxLength) return input;
     return '${input.substring(0, maxLength)}...';
+  }
+
+  static bool isRenderableSvg(String? svg) {
+    if (svg == null) return false;
+    final normalized = svg.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    if (!normalized.contains('<svg')) return false;
+    if (!normalized.contains('</svg>')) return false;
+    return normalized.contains('<text') ||
+        normalized.contains('<line') ||
+        normalized.contains('<rect');
   }
 
   void dispose() => _client.close();

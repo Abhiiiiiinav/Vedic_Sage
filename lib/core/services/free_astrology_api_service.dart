@@ -1,12 +1,44 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service to interact with Free Astrology API
 /// https://freeastrologyapi.com
 class FreeAstrologyApiService {
   static const String _baseUrl = "https://json.freeastrologyapi.com";
-  static const String _apiKey = "O6sSA5hKu8atz6KDG3xQt1rlTLkUzUhJ6x1wwtLJ";
+  static const String _apiKey = "vO6sSA5hKu8atz6KDG3xQt1rlTLkUzUhJ6x1wwtLJ";
   static String get fallbackApiKey => _apiKey;
+  static int _rotationIndex = 0;
+
+  static List<String> _resolveApiKeys() {
+    final envListRaw = dotenv.env['ASTRO_API_KEYS'] ?? '';
+    final envList = envListRaw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    final keys = <String>[
+      ...envList,
+      (dotenv.env['ASTRO_API_KEY_1'] ?? '').trim(),
+      (dotenv.env['ASTRO_API_KEY_2'] ?? '').trim(),
+      (dotenv.env['ASTRO_API_KEY_3'] ?? '').trim(),
+      (dotenv.env['ASTRO_API_KEY'] ?? '').trim(),
+      _apiKey,
+    ].where((e) => e.isNotEmpty).toSet().toList();
+
+    return keys;
+  }
+
+  static List<String> _rotatedKeys(List<String> keys) {
+    if (keys.isEmpty) return const [];
+    final start = _rotationIndex % keys.length;
+    _rotationIndex++;
+    return List<String>.generate(
+      keys.length,
+      (i) => keys[(start + i) % keys.length],
+    );
+  }
 
   /// Fetch birth chart planetary positions (planets endpoint)
   /// 
@@ -67,37 +99,71 @@ class FreeAstrologyApiService {
     print("   Observation: ${apiConfig['observation_point']}");
     
     final url = Uri.parse("$_baseUrl/planets");
+    final payload = jsonEncode({
+      "year": year,
+      "month": month,
+      "date": date,
+      "hours": hours,
+      "minutes": minutes,
+      "seconds": 0,
+      "latitude": latitude,
+      "longitude": longitude,
+      "timezone": timezone,
+      "config": apiConfig, // ✅ Use provided or default config
+    });
 
-    final response = await http.post(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": _apiKey,
-      },
-      body: jsonEncode({
-        "year": year,
-        "month": month,
-        "date": date,
-        "hours": hours,
-        "minutes": minutes,
-        "seconds": 0,
-        "latitude": latitude,
-        "longitude": longitude,
-        "timezone": timezone,
-        "config": apiConfig, // ✅ Use provided or default config
-      }),
-    );
-
-    if (response.statusCode != 200) {
-      print("❌ API ERROR: ${response.statusCode}");
-      print("Response: ${response.body}");
-      throw Exception(
-          "Failed to fetch birth chart: ${response.statusCode} - ${response.body}");
+    final keys = _rotatedKeys(_resolveApiKeys());
+    if (keys.isEmpty) {
+      throw Exception("Failed to fetch birth chart: no API keys configured");
     }
-    
-    print("✅ API Response received (${response.body.length} bytes)");
 
-    return jsonDecode(response.body);
+    int? lastStatus;
+    String? lastBody;
+    Object? lastError;
+
+    for (final key in keys) {
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": key,
+          },
+          body: payload,
+        );
+
+        if (response.statusCode == 200) {
+          print("✅ API Response received (${response.body.length} bytes)");
+          return jsonDecode(response.body);
+        }
+
+        lastStatus = response.statusCode;
+        lastBody = response.body;
+
+        // Try next key for key-related failures.
+        if (response.statusCode == 401 ||
+            response.statusCode == 403 ||
+            response.statusCode == 429) {
+          continue;
+        }
+
+        break;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError != null && lastStatus == null) {
+      throw Exception("Failed to fetch birth chart: $lastError");
+    }
+
+    print("❌ API ERROR: ${lastStatus ?? "unknown"}");
+    if (lastBody != null) {
+      print("Response: $lastBody");
+    }
+    throw Exception(
+      "Failed to fetch birth chart: ${lastStatus ?? "unknown"} - ${lastBody ?? "no response"}",
+    );
   }
 
   /// Fetch horoscope chart as SVG code (D1/Rasi)

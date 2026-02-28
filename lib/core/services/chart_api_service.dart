@@ -154,6 +154,12 @@ class ChartApiService {
 
       if (result['success'] == true) {
         final svgContent = result['svg'] as String?;
+        if (!DirectSvgChartService.isRenderableSvg(svgContent)) {
+          return ChartResponse(
+            success: false,
+            error: 'Received non-renderable SVG from API.',
+          );
+        }
         return ChartResponse(
           success: true,
           svg: svgContent,
@@ -164,7 +170,12 @@ class ChartApiService {
 
       return ChartResponse(
         success: false,
-        error: (result['error'] as String?) ?? 'Unknown error',
+        error: () {
+          final error = (result['error'] as String?) ?? 'Unknown error';
+          final details = (result['details'] as String?)?.trim();
+          if (details == null || details.isEmpty) return error;
+          return '$error\n$details';
+        }(),
       );
     } catch (e) {
       print('❌ Network error: $e');
@@ -201,7 +212,8 @@ class ChartApiService {
           if (item is Map) {
             item.forEach((key, value) {
               if (value is Map && value.containsKey('name')) {
-                planets[value['name'].toString()] = value;
+                planets[value['name'].toString()] =
+                    value.map((k, v) => MapEntry(k.toString(), v));
               } else if (key.toString() == 'ayanamsa') {
                 planets['ayanamsa'] = value;
               }
@@ -217,9 +229,9 @@ class ChartApiService {
     }
   }
 
-  /// Fetch full kundali data from the /kundali/full endpoint.
+  /// Build full kundali data entirely in Dart (no Python backend required).
   ///
-  /// Returns SVG + planet positions + degrees + nakshatras for all divisions.
+  /// Returns SVG + extracted positions + house signs + D1 degrees + nakshatras.
   Future<Map<String, dynamic>?> fetchFullKundali({
     required int year,
     required int month,
@@ -290,6 +302,11 @@ class ChartApiService {
             'planet_signs': parsed.planetSigns,
             'planets_in_houses': parsed.planetsInHouses
                 .map((k, v) => MapEntry(k.toString(), v)),
+            'house_signs':
+                parsed.houseSigns.map((k, v) => MapEntry(k.toString(), v)),
+            'extraction_status': parsed.extractionStatus,
+            'extracted_planet_count': parsed.extractedPlanetCount,
+            'raw_text_node_count': parsed.rawTextNodeCount,
           };
         } else {
           errors[division.toLowerCase()] =
@@ -302,23 +319,26 @@ class ChartApiService {
       final nakshatras = <String, dynamic>{};
 
       planetaryData.forEach((name, value) {
-        if (value is! Map<String, dynamic>) return;
+        if (value is! Map) return;
+        final normalized = value.map((k, v) => MapEntry(k.toString(), v));
         final fullDegree =
-            ((value['fullDegree'] ?? value['full_degree'] ?? 0) as num)
-                .toDouble();
+            _toDouble(normalized['fullDegree'] ?? normalized['full_degree']);
         final sign =
-            ((value['current_sign'] ?? value['sign_num'] ?? 0) as num).toInt();
+            _toInt(normalized['current_sign'] ?? normalized['sign_num']);
         final nak = SvgChartParser.calculateNakshatra(fullDegree);
         d1Planets[name] = {
           'fullDegree': fullDegree,
-          'normDegree': ((value['normDegree'] ?? value['sign_degree'] ?? 0)
-                  as num)
-              .toDouble(),
+          'normDegree': _toDouble(
+            normalized['normDegree'] ?? normalized['sign_degree'],
+          ),
           'sign': sign,
           'sign_name': sign > 0 ? _signNames[sign - 1] : 'Unknown',
-          'house': ((value['house_number'] ?? value['house'] ?? 0) as num)
-              .toInt(),
-          'isRetro': (value['isRetro'] ?? value['is_retro'] ?? false) as bool,
+          'house': _toInt(normalized['house_number'] ?? normalized['house']),
+          'isRetro': _parseBool(
+            normalized['isRetro'] ??
+                normalized['is_retro'] ??
+                normalized['isRetrograde'],
+          ),
           'nakshatra': nak.nakshatra,
           'nakshatra_pada': nak.pada,
           'nakshatra_lord': nak.lord,
@@ -371,6 +391,43 @@ class ChartApiService {
       observationPoint: birthDetails.observationPoint,
       ayanamsha: birthDetails.ayanamsha,
     );
+  }
+
+  static bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized.isEmpty ||
+          normalized == 'null') {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
+  static int _toInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim()) ?? fallback;
+    return fallback;
+  }
+
+  static double _toDouble(dynamic value, {double fallback = 0}) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.trim()) ?? fallback;
+    return fallback;
   }
 }
 
@@ -498,24 +555,28 @@ class BatchChartResponse {
   });
 }
 
-/// Enum for available divisional charts
+/// Enum for available divisional charts (D1-D60)
 enum DivisionalChart {
-  d1('D1', 'Rasi', 'Birth Chart - General life'),
-  d2('D2', 'Hora', 'Wealth & prosperity'),
-  d3('D3', 'Drekkana', 'Siblings & courage'),
-  d4('D4', 'Chaturthamsa', 'Fortune & property'),
-  d7('D7', 'Saptamsa', 'Children & progeny'),
-  d9('D9', 'Navamsa', 'Marriage & dharma'),
-  d10('D10', 'Dasamsa', 'Career & profession'),
-  d12('D12', 'Dwadasamsa', 'Parents & lineage'),
-  d16('D16', 'Shodasamsa', 'Vehicles & comforts'),
-  d20('D20', 'Vimsamsa', 'Spiritual progress'),
-  d24('D24', 'Chaturvimsamsa', 'Education & learning'),
-  d27('D27', 'Saptavimsamsa', 'Strengths & weaknesses'),
-  d30('D30', 'Trimsamsa', 'Misfortunes & evils'),
-  d40('D40', 'Khavedamsa', 'Auspicious effects'),
-  d45('D45', 'Akshavedamsa', 'General indications'),
-  d60('D60', 'Shashtyamsa', 'Past life karma');
+  d1('D1', 'Rasi', 'Birth Chart - General life, body, personality'),
+  d2('D2', 'Hora', 'Wealth, prosperity, financial matters'),
+  d3('D3', 'Drekkana', 'Siblings, courage, short journeys'),
+  d4('D4', 'Chaturthamsa', 'Fortune, property, fixed assets'),
+  d5('D5', 'Panchamsa', 'Fame, authority, power'),
+  d6('D6', 'Shashthamsa', 'Health, diseases, enemies'),
+  d7('D7', 'Saptamsa', 'Children, progeny, creativity'),
+  d8('D8', 'Ashtamsa', 'Longevity, sudden events, obstacles'),
+  d9('D9', 'Navamsa', 'Marriage, dharma, spiritual path'),
+  d10('D10', 'Dasamsa', 'Career, profession, status'),
+  d11('D11', 'Rudramsa', 'Destruction, transformation'),
+  d12('D12', 'Dwadasamsa', 'Parents, lineage, ancestors'),
+  d16('D16', 'Shodasamsa', 'Vehicles, comforts, happiness'),
+  d20('D20', 'Vimsamsa', 'Spiritual progress, worship'),
+  d24('D24', 'Chaturvimsamsa', 'Education, learning, knowledge'),
+  d27('D27', 'Saptavimsamsa', 'Strengths, weaknesses, vitality'),
+  d30('D30', 'Trimsamsa', 'Misfortunes, evils, suffering'),
+  d40('D40', 'Khavedamsa', 'Auspicious effects, maternal legacy'),
+  d45('D45', 'Akshavedamsa', 'General indications, character'),
+  d60('D60', 'Shashtyamsa', 'Past life karma, overall life');
 
   final String code;
   final String name;
@@ -524,4 +585,7 @@ enum DivisionalChart {
   const DivisionalChart(this.code, this.name, this.description);
 
   String get apiEndpoint => '/chart/${code.toLowerCase()}';
+  
+  /// Get division number (e.g., 1 for D1, 9 for D9)
+  int get division => int.parse(code.substring(1));
 }

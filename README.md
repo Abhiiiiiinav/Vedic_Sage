@@ -1,6 +1,6 @@
 # 🌟 AstroLearn
 
-A production-grade **Vedic Astrology** learning & analysis app built with **Flutter** and **Flask**.
+A production-grade **Vedic Astrology** learning & analysis app built with **Flutter** and direct **Free Astrology API** integration.
 
 ## ✨ Features
 
@@ -22,7 +22,7 @@ A production-grade **Vedic Astrology** learning & analysis app built with **Flut
 ## 🏗️ Architecture
 
 ```
-Flutter App ──→ Core Layer ──→ Flask Backend ──→ Free Astrology API
+Flutter App ──→ Core Layer ──→ Free Astrology API
                    │                              
                    ├── Hive (local cache)          
                    ├── Gemini AI (interpretations)  
@@ -36,16 +36,14 @@ Flutter App ──→ Core Layer ──→ Flask Backend ──→ Free Astrolog
 flutter pub get
 flutter run
 
-# 2. Flask backend (in separate terminal)
-cd backend
-pip install -r requirements.txt
-python app.py
+# 2. Configure API keys for direct chart fetch
+# Add ASTRO_API_KEY or ASTRO_API_KEYS in .env
 ```
 
 ## 📦 Tech Stack
 
 - **Flutter 3.x** — Cross-platform mobile UI
-- **Flask** — Chart proxy server with API key rotation
+- **Direct Free Astrology API** — Chart + planets fetch with client-side key rotation
 - **Hive** — Local database for offline support
 - **Google Gemini** — AI-powered astrological interpretations
 - **Free Astrology API** — SVG chart generation
@@ -131,7 +129,7 @@ python app.py
 ### 📁 `core/repositories/` — Data Access Layer
 | File | Description |
 |------|-------------|
-| `chart_repository.dart` | **Cache-first chart fetching** — Hive cache → Flask API → save to Hive. Supports batch operations, cache stats, refresh |
+| `chart_repository.dart` | **Cache-first chart fetching** — Hive cache → direct API → save to Hive. Supports batch operations, cache stats, refresh |
 
 ---
 
@@ -139,7 +137,7 @@ python app.py
 | File | Description |
 |------|-------------|
 | `gemini_service.dart` | **Google Gemini AI** — 18+ methods: daily predictions, chart readings, name analysis, Dasha, Darakaraka, trine, Lagna, Nakshatra, remedies, Q&A |
-| `chart_api_service.dart` | Flutter HTTP client for Flask backend — chart fetching, batch requests, device/emulator URL handling |
+| `chart_api_service.dart` | Flutter HTTP client for direct Free Astrology API — chart fetching, batch requests, SVG validation |
 | `free_astrology_api_service.dart` | Direct client for Free Astrology API — planetary position data |
 | `chart_storage_service.dart` | Saves divisional charts to Hive — validates SVG, extracts planets via parser |
 | `svg_chart_parser.dart` | Parses SVG text elements → planet positions → house mapping |
@@ -173,7 +171,7 @@ python app.py
 | `screens/chart_screen.dart` | Screen | Main chart — SVG display, planet positions, house details |
 | `screens/chart_loader_screen.dart` | Screen | Loading animation while chart is fetched |
 | `screens/chart_gallery_screen.dart` | Screen | Gallery of all divisional charts (D1–D60) |
-| `screens/flask_chart_demo_screen.dart` | Screen | Flask API demo/testing screen |
+| `screens/chart_api_demo_screen.dart` | Screen | Direct API demo/testing screen |
 | `screens/house_detail_screen.dart` | Screen | House detail — lord, planets, significations, AI reading |
 | `screens/planet_detail_screen.dart` | Screen | Planet detail — sign, house, dignity, Nakshatra, AI reading |
 | `screens/sign_detail_screen.dart` | Screen | Sign detail — ruler, element, quality, placed planets |

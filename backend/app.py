@@ -562,13 +562,45 @@ def extract_positions_from_svg(svg_content):
     
     Returns:
         {
-            'ascendant_sign': int (1-12),
+            'ascendant_sign': int (1-12, or 0 if unknown),
             'planet_signs': {'Su': 8, 'Mo': 4, ...},
-            'planets_in_houses': {1: ['Su', 'Me'], 2: [], ...}
+            'planets_in_houses': {1: ['Su', 'Me'], 2: [], ...},
+            'house_signs': {1: {'sign_number': 4, 'sign_name': 'Cancer'}, ...},
+            'raw_text_node_count': 18,
+            'extracted_planet_count': 9,
+            'extraction_status': 'ok|partial|failed'
         }
     """
+    def build_house_signs(asc_sign):
+        out = {}
+        for house in range(1, 13):
+            if asc_sign > 0:
+                sign = ((asc_sign + house - 2) % 12) + 1
+                out[house] = {
+                    'sign_number': sign,
+                    'sign_name': SIGN_NAMES[sign - 1],
+                }
+            else:
+                out[house] = {
+                    'sign_number': 0,
+                    'sign_name': 'Unknown',
+                }
+        return out
+
+    def build_empty_result():
+        empty_houses = {i: [] for i in range(1, 13)}
+        return {
+            'ascendant_sign': 0,
+            'planet_signs': {},
+            'planets_in_houses': empty_houses,
+            'house_signs': build_house_signs(0),
+            'raw_text_node_count': 0,
+            'extracted_planet_count': 0,
+            'extraction_status': 'failed',
+        }
+
     if not svg_content or '<svg' not in svg_content:
-        return {'ascendant_sign': 0, 'planet_signs': {}, 'planets_in_houses': {}}
+        return build_empty_result()
     
     # Detect chart dimensions from viewBox or width/height
     chart_width = 400.0  # Default
@@ -582,17 +614,30 @@ def extract_positions_from_svg(svg_content):
     
     cell_size = chart_width / 4.0
     
-    # Parse text elements
-    text_pattern = re.compile(
-        r'<text[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*>([^<]+)</text>',
-        re.IGNORECASE
+    # Parse text elements with tolerant matching:
+    # - any attribute order
+    # - extra attributes/newlines
+    # - mixed quoting style for values
+    text_node_pattern = re.compile(
+        r'<text\b([^>]*)>(.*?)</text>',
+        re.IGNORECASE | re.DOTALL,
     )
+    x_attr_pattern = re.compile(r'\bx\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
+    y_attr_pattern = re.compile(r'\by\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
     
     ascendant_sign = 0
     planet_signs = {}
+    raw_text_node_count = 0
     
-    for match in text_pattern.finditer(svg_content):
-        x_str, y_str, raw_text = match.group(1), match.group(2), match.group(3)
+    for match in text_node_pattern.finditer(svg_content):
+        raw_text_node_count += 1
+        attrs = match.group(1) or ''
+        raw_text = match.group(2) or ''
+        x_match = x_attr_pattern.search(attrs)
+        y_match = y_attr_pattern.search(attrs)
+        if not x_match or not y_match:
+            continue
+        x_str, y_str = x_match.group(1), y_match.group(1)
         
         try:
             x = float(x_str)
@@ -600,8 +645,15 @@ def extract_positions_from_svg(svg_content):
         except ValueError:
             continue
         
-        # Clean text (remove parentheses, whitespace)
-        text = re.sub(r'[()\s]', '', raw_text).strip()
+        # Normalize token:
+        # - collapse and trim whitespace
+        # - remove surrounding parentheses, e.g. "(Ju)" -> "Ju"
+        text = raw_text.strip()
+        text = re.sub(r'\s+', '', text)
+        if text.startswith('(') and text.endswith(')') and len(text) > 2:
+            text = text[1:-1].strip()
+        if not text:
+            continue
         
         # Map coordinates to grid cell
         col = min(int(x / cell_size), 3)
@@ -629,11 +681,22 @@ def extract_positions_from_svg(svg_content):
         for planet, sign in planet_signs.items():
             house = ((sign - ascendant_sign + 12) % 12) + 1
             planets_in_houses[house].append(planet)
+
+    if ascendant_sign > 0 and planet_signs:
+        extraction_status = 'ok'
+    elif ascendant_sign > 0 or planet_signs:
+        extraction_status = 'partial'
+    else:
+        extraction_status = 'failed'
     
     return {
         'ascendant_sign': ascendant_sign,
         'planet_signs': planet_signs,
         'planets_in_houses': planets_in_houses,
+        'house_signs': build_house_signs(ascendant_sign),
+        'raw_text_node_count': raw_text_node_count,
+        'extracted_planet_count': len(planet_signs),
+        'extraction_status': extraction_status,
     }
 
 
@@ -682,7 +745,17 @@ def get_full_kundali():
     {
         "success": true,
         "divisions": {
-            "d1": {"svg": "...", "ascendant_sign": 4, "planet_signs": {...}},
+            "d1": {
+                "svg": "...",
+                "ascendant_sign": 4,
+                "ascendant_name": "Cancer",
+                "planet_signs": {...},
+                "planets_in_houses": {...},
+                "house_signs": {"1": {"sign_number": 4, "sign_name": "Cancer"}, ...},
+                "extraction_status": "ok",
+                "extracted_planet_count": 9,
+                "raw_text_node_count": 18
+            },
             "d9": {"svg": "...", "ascendant_sign": 7, "planet_signs": {...}},
             ...
         },
@@ -723,6 +796,10 @@ def get_full_kundali():
                 'ascendant_name': SIGN_NAMES[positions['ascendant_sign'] - 1] if positions['ascendant_sign'] > 0 else 'Unknown',
                 'planet_signs': positions['planet_signs'],
                 'planets_in_houses': {str(k): v for k, v in positions['planets_in_houses'].items()},
+                'house_signs': {str(k): v for k, v in positions['house_signs'].items()},
+                'extraction_status': positions['extraction_status'],
+                'extracted_planet_count': positions['extracted_planet_count'],
+                'raw_text_node_count': positions['raw_text_node_count'],
             }
         else:
             errors[div_key] = result.get('error', 'Unknown error')

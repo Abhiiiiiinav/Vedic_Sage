@@ -55,7 +55,7 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
     final chartApiService = api.ChartApiService();
 
     try {
-      // Step 1: Try Flask API first for accurate positions
+      // Step 1: Fetch direct API data in Dart for accurate positions
       _updateStatus('Connecting to astrology server...', 10);
       
       final apiDetails = api.BirthDetails(
@@ -238,7 +238,9 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
       final signNum = (data['current_sign'] ?? 1) as int;
       final nakshatra = data['nakshatra'] ?? data['nakshatra_name'];
       final nakshatraPada = data['nakshatra_pada'] ?? data['nakshatra_quarter'];
-      final isRetro = data['isRetro'] ?? data['is_retro'] ?? false;
+      final isRetro = _parseBool(
+        data['isRetro'] ?? data['is_retro'] ?? data['isRetrograde'],
+      );
       
       newPlanets[name] = {
         'degree': degree.toDouble(),
@@ -279,6 +281,29 @@ class _ChartLoaderScreenState extends State<ChartLoaderScreen>
   
   int _getNakshatraIndex(double degree) {
     return (degree / 13.333333333).floor() + 1;
+  }
+
+  bool _parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' ||
+          normalized == '1' ||
+          normalized == 'yes' ||
+          normalized == 'y') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == '0' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized.isEmpty ||
+          normalized == 'null') {
+        return false;
+      }
+    }
+    return fallback;
   }
 
   /// Convert new engine format to legacy format for existing UI

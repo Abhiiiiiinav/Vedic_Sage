@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import '../widgets/svg_chart_viewer.dart';
 import '../../../core/services/chart_api_service.dart';
 
-/// Demo screen to test the Flask backend + Free Astrology API integration
-class FlaskChartDemoScreen extends StatefulWidget {
-  const FlaskChartDemoScreen({super.key});
+/// Demo screen to test direct Free Astrology API integration.
+class ChartApiDemoScreen extends StatefulWidget {
+  const ChartApiDemoScreen({super.key});
 
   @override
-  State<FlaskChartDemoScreen> createState() => _FlaskChartDemoScreenState();
+  State<ChartApiDemoScreen> createState() => _ChartApiDemoScreenState();
 }
 
-class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
+class _ChartApiDemoScreenState extends State<ChartApiDemoScreen> {
   // Birth details form
   DateTime _selectedDate = DateTime(2003, 11, 22);
   TimeOfDay _selectedTime = const TimeOfDay(hour: 13, minute: 30);
@@ -143,8 +143,8 @@ class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
                       isLoading
                           ? 'Checking server...'
                           : isRunning
-                              ? 'Flask Server + Free Astrology API'
-                              : 'Flask Server Not Running',
+                              ? 'Direct Free Astrology API'
+                              : 'Chart API initialization failed',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -153,8 +153,8 @@ class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
                     ),
                     Text(
                       isRunning
-                          ? 'Connected to chart generation service'
-                          : 'Run: python backend/app.py',
+                          ? 'Connected to direct chart generation service'
+                          : 'Check API keys in .env',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.7),
                         fontSize: 12,
@@ -605,7 +605,7 @@ class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'Flutter App → Flask Backend → Free Astrology API',
+              'Flutter App → Free Astrology API',
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
             SizedBox(height: 16),
@@ -629,7 +629,7 @@ class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
             ),
             SizedBox(height: 16),
             Text(
-              'Start Server',
+              'Runtime',
               style: TextStyle(
                 color: Color(0xFF9D4EDD),
                 fontWeight: FontWeight.bold,
@@ -637,10 +637,9 @@ class _FlaskChartDemoScreenState extends State<FlaskChartDemoScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'cd backend\npython app.py',
+              'No local Flask server required.',
               style: TextStyle(
                 color: Colors.white70,
-                fontFamily: 'monospace',
                 fontSize: 12,
               ),
             ),

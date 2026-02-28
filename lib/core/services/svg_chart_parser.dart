@@ -146,24 +146,46 @@ class SvgChartParser {
     final chartWidth = _detectChartWidth(svg);
     final cellSize = chartWidth / 4.0;
 
-    // 2. Parse text elements
-    final textRegex = RegExp(
-      r'<text[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*>([^<]+)</text>',
+    // 2. Parse text elements with tolerant matching:
+    // - any x/y attribute order
+    // - extra attributes and newlines
+    // - mixed content in text nodes
+    final textNodeRegex = RegExp(
+      r'<text\b([^>]*)>(.*?)</text>',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final xAttrRegex = RegExp(
+      r"\bx\s*=\s*['\x22]([^'\x22]+)['\x22]",
+      caseSensitive: false,
+    );
+    final yAttrRegex = RegExp(
+      r"\by\s*=\s*['\x22]([^'\x22]+)['\x22]",
       caseSensitive: false,
     );
 
     int ascendantSign = 0;
     final planetSigns = <String, int>{};
+    int rawTextNodeCount = 0;
 
-    for (final match in textRegex.allMatches(svg)) {
-      final x = double.tryParse(match.group(1) ?? '');
-      final y = double.tryParse(match.group(2) ?? '');
-      final rawText = match.group(3);
+    for (final match in textNodeRegex.allMatches(svg)) {
+      rawTextNodeCount++;
+      final attrs = match.group(1) ?? '';
+      final rawText = match.group(2);
+      final xMatch = xAttrRegex.firstMatch(attrs);
+      final yMatch = yAttrRegex.firstMatch(attrs);
+      if (xMatch == null || yMatch == null) continue;
+      final x = double.tryParse(xMatch.group(1) ?? '');
+      final y = double.tryParse(yMatch.group(1) ?? '');
 
       if (x == null || y == null || rawText == null) continue;
 
-      // Clean text: remove parentheses and whitespace
-      final text = rawText.replaceAll(RegExp('[()\\s]'), '').trim();
+      // Normalize token. "(Ju)" -> "Ju", collapse internal spaces.
+      var text = rawText.trim().replaceAll(RegExp(r'\s+'), '');
+      if (text.startsWith('(') && text.endsWith(')') && text.length > 2) {
+        text = text.substring(1, text.length - 1).trim();
+      }
+      if (text.isEmpty) continue;
 
       // 3. Map coordinates to grid cell
       final col = (x / cellSize).floor().clamp(0, 3);
@@ -200,12 +222,36 @@ class SvgChartParser {
       }
     }
 
+    final houseSigns = <int, Map<String, dynamic>>{
+      for (int house = 1; house <= 12; house++)
+        house: ascendantSign > 0
+            ? (() {
+                final sign = ((ascendantSign + house - 2) % 12) + 1;
+                return {
+                  'sign_number': sign,
+                  'sign_name': signNames[sign - 1],
+                };
+              })()
+            : {
+                'sign_number': 0,
+                'sign_name': 'Unknown',
+              }
+    };
+
+    final extractionStatus = ascendantSign > 0 && planetSigns.isNotEmpty
+        ? 'ok'
+        : (ascendantSign > 0 || planetSigns.isNotEmpty ? 'partial' : 'failed');
+
     return SvgExtractionResult(
       ascendantSign: ascendantSign,
       ascendantName:
           ascendantSign > 0 ? signNames[ascendantSign - 1] : 'Unknown',
       planetSigns: planetSigns,
       planetsInHouses: planetsInHouses,
+      houseSigns: houseSigns,
+      rawTextNodeCount: rawTextNodeCount,
+      extractedPlanetCount: planetSigns.length,
+      extractionStatus: extractionStatus,
     );
   }
 
@@ -459,11 +505,27 @@ class SvgExtractionResult {
   /// House number → list of planet abbreviations
   final Map<int, List<String>> planetsInHouses;
 
+  /// House number → sign info derived from ascendant
+  final Map<int, Map<String, dynamic>> houseSigns;
+
+  /// Number of raw <text> nodes seen in SVG
+  final int rawTextNodeCount;
+
+  /// Number of extracted Vedic planets
+  final int extractedPlanetCount;
+
+  /// Extraction status: ok | partial | failed
+  final String extractionStatus;
+
   const SvgExtractionResult({
     required this.ascendantSign,
     required this.ascendantName,
     required this.planetSigns,
     required this.planetsInHouses,
+    required this.houseSigns,
+    required this.rawTextNodeCount,
+    required this.extractedPlanetCount,
+    required this.extractionStatus,
   });
 
   factory SvgExtractionResult.empty() => SvgExtractionResult(
@@ -471,6 +533,13 @@ class SvgExtractionResult {
         ascendantName: 'Unknown',
         planetSigns: const {},
         planetsInHouses: {for (int i = 1; i <= 12; i++) i: []},
+        houseSigns: {
+          for (int i = 1; i <= 12; i++)
+            i: {'sign_number': 0, 'sign_name': 'Unknown'}
+        },
+        rawTextNodeCount: 0,
+        extractedPlanetCount: 0,
+        extractionStatus: 'failed',
       );
 
   /// Whether extraction found any data
@@ -486,6 +555,10 @@ class SvgExtractionResult {
         'planets_in_houses': planetsInHouses.map(
           (k, v) => MapEntry(k.toString(), v),
         ),
+        'house_signs': houseSigns.map((k, v) => MapEntry(k.toString(), v)),
+        'raw_text_node_count': rawTextNodeCount,
+        'extracted_planet_count': extractedPlanetCount,
+        'extraction_status': extractionStatus,
       };
 
   @override

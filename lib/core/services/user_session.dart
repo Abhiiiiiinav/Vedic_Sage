@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../models/birth_details.dart';
 import '../database/hive_database_service.dart';
 import '../database/models/hive_models.dart';
@@ -10,7 +11,7 @@ class UserSession {
   UserSession._internal();
 
   final HiveDatabaseService _db = HiveDatabaseService();
-  
+
   BirthDetails? _birthDetails;
   Map<String, dynamic>? _birthChart;
   UserProfileModel? _currentProfile;
@@ -20,7 +21,7 @@ class UserSession {
 
   /// Get stored birth chart
   Map<String, dynamic>? get birthChart => _birthChart;
-  
+
   /// Get current profile
   UserProfileModel? get currentProfile => _currentProfile;
 
@@ -29,7 +30,7 @@ class UserSession {
     await _loadFromDatabase();
     print('📱 UserSession initialized');
   }
-  
+
   /// Load primary profile from database
   Future<void> _loadFromDatabase() async {
     try {
@@ -45,21 +46,21 @@ class UserSession {
           cityName: profile.birthPlace ?? 'Unknown',
           timezoneOffset: profile.timezoneOffset ?? 5.5,
         );
-        
+
         // Load saved chart for this profile if available
         final charts = _db.getChartsForProfile(profile.id);
         if (charts.isNotEmpty) {
           final latestChart = charts.last;
           _birthChart = _convertSavedChartToMap(latestChart);
         }
-        
+
         print('✅ Loaded profile: ${profile.name}');
       }
     } catch (e) {
       print('⚠️ Error loading from database: $e');
     }
   }
-  
+
   /// Convert SavedChartModel to the Map format used by the app
   Map<String, dynamic> _convertSavedChartToMap(SavedChartModel chart) {
     // Build houses list from planet placements
@@ -68,13 +69,13 @@ class UserSession {
     Map<String, double> planetDegrees = {};
     Map<String, int> planetSigns = {};
     Map<String, int> planetHouses = {};
-    
+
     for (var planet in chart.planetPlacements) {
       // Add to house
       if (planet.house >= 1 && planet.house <= 12) {
         houses[planet.house - 1].add(_getAbbreviation(planet.planetId));
       }
-      
+
       planetPositions[planet.planetId] = {
         'longitude': planet.degrees,
         'sign': planet.sign,
@@ -86,7 +87,18 @@ class UserSession {
       planetSigns[planet.planetId] = _getSignIndex(planet.sign) + 1;
       planetHouses[planet.planetId] = planet.house;
     }
-    
+
+    // Restore divisionalSvgs from chartSvg field (JSON-encoded map)
+    Map<String, dynamic>? divisionalSvgs;
+    if (chart.chartSvg != null && chart.chartSvg!.startsWith('{')) {
+      try {
+        divisionalSvgs =
+            (jsonDecode(chart.chartSvg!) as Map).cast<String, dynamic>();
+      } catch (_) {
+        // Not valid JSON — ignore
+      }
+    }
+
     return {
       'houses': houses,
       'planetPositions': planetPositions,
@@ -98,21 +110,41 @@ class UserSession {
       'ascSign': chart.ascendantSign,
       'ascSignIndex': _getSignIndex(chart.ascendantSign ?? 'Aries'),
       'savedChartId': chart.id,
+      if (divisionalSvgs != null) 'divisionalSvgs': divisionalSvgs,
       'rawApiResponse': chart.rawApiResponse,
     };
   }
-  
+
   String _getAbbreviation(String name) {
     const abbrevMap = {
-      'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me',
-      'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke',
+      'Sun': 'Su',
+      'Moon': 'Mo',
+      'Mars': 'Ma',
+      'Mercury': 'Me',
+      'Jupiter': 'Ju',
+      'Venus': 'Ve',
+      'Saturn': 'Sa',
+      'Rahu': 'Ra',
+      'Ketu': 'Ke',
     };
     return abbrevMap[name] ?? name.substring(0, 2);
   }
-  
+
   int _getSignIndex(String sign) {
-    const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-                   'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+    const signs = [
+      'Aries',
+      'Taurus',
+      'Gemini',
+      'Cancer',
+      'Leo',
+      'Virgo',
+      'Libra',
+      'Scorpio',
+      'Sagittarius',
+      'Capricorn',
+      'Aquarius',
+      'Pisces'
+    ];
     return signs.indexOf(sign).clamp(0, 11);
   }
 
@@ -123,23 +155,24 @@ class UserSession {
   }) async {
     _birthDetails = details;
     _birthChart = chart;
-    
+
     // Save to database
     await _saveToDatabase(details, chart);
-    
+
     print('💾 User session saved for: ${details.name}');
   }
-  
+
   /// Save to Hive database
-  Future<void> _saveToDatabase(BirthDetails details, Map<String, dynamic> chart) async {
+  Future<void> _saveToDatabase(
+      BirthDetails details, Map<String, dynamic> chart) async {
     try {
       // Check if profile exists
       final profiles = _db.getAllProfiles();
       var profile = profiles.cast<UserProfileModel?>().firstWhere(
-        (p) => p?.name.toLowerCase() == details.name.toLowerCase(),
-        orElse: () => null,
-      );
-      
+            (p) => p?.name.toLowerCase() == details.name.toLowerCase(),
+            orElse: () => null,
+          );
+
       if (profile == null) {
         // Create new profile
         profile = await _db.createProfile(
@@ -162,12 +195,23 @@ class UserSession {
         ));
         await _db.setPrimaryProfile(profile.id);
       }
-      
+
       _currentProfile = profile;
-      
+
       // Save chart data
       final planetPlacements = _extractPlanetPlacements(chart);
-      
+
+      // Serialize divisionalSvgs into chartSvg field as JSON
+      String? chartSvgJson;
+      final divSvgs = chart['divisionalSvgs'];
+      if (divSvgs is Map && divSvgs.isNotEmpty) {
+        try {
+          chartSvgJson = jsonEncode(divSvgs);
+        } catch (_) {
+          // Encoding failed — skip
+        }
+      }
+
       await _db.saveChart(
         profileId: profile.id,
         name: '${details.name} - D1 Rasi',
@@ -180,19 +224,21 @@ class UserSession {
         ascendantDegrees: (chart['ascDegree'] as num?)?.toDouble(),
         planetPlacements: planetPlacements,
         rawApiResponse: chart['apiPlanets'] as Map<String, dynamic>?,
+        chartSvg: chartSvgJson,
       );
-      
+
       print('📦 Saved to Hive database');
     } catch (e) {
       print('⚠️ Error saving to database: $e');
     }
   }
-  
+
   /// Extract planet placements from chart data
-  List<PlanetPlacementModel> _extractPlanetPlacements(Map<String, dynamic> chart) {
+  List<PlanetPlacementModel> _extractPlanetPlacements(
+      Map<String, dynamic> chart) {
     final placements = <PlanetPlacementModel>[];
     final positions = chart['planetPositions'] as Map<String, dynamic>?;
-    
+
     if (positions != null) {
       positions.forEach((name, data) {
         if (data is Map<String, dynamic>) {
@@ -208,7 +254,7 @@ class UserSession {
         }
       });
     }
-    
+
     return placements;
   }
 
@@ -221,7 +267,7 @@ class UserSession {
 
   /// Check if user has entered birth details
   bool get hasData => _birthDetails != null && _birthChart != null;
-  
+
   /// Reload from database
   Future<void> reload() async {
     await _loadFromDatabase();

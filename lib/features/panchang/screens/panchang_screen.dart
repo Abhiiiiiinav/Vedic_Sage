@@ -6,8 +6,10 @@ import '../../../shared/widgets/astro_card.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../core/services/panchang_service.dart';
 import '../../../core/services/user_session.dart';
-import '../../../core/constants/astro_data.dart';
 import '../../calculator/screens/birth_details_screen.dart';
+import '../../../core/services/yoga_detection_service.dart';
+import '../../../core/models/yoga_models.dart';
+import '../../yogas/screens/yoga_screen.dart';
 
 class PanchangScreen extends StatefulWidget {
   const PanchangScreen({super.key});
@@ -32,6 +34,11 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
   double _latitude = 28.6139;
   double _longitude = 77.2090;
   double _timezone = 5.5;
+  
+  // Yoga detection service
+  final YogaDetectionService _yogaService = YogaDetectionService();
+  List<YogaResult>? _detectedYogas;
+  bool _isLoadingYogas = false;
 
   @override
   void initState() {
@@ -96,6 +103,35 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
           timezone: _timezone,
         );
         _isLoading = false;
+      });
+    }
+    
+    // Fetch yogas after panchang data is loaded
+    _fetchYogas();
+  }
+  
+  Future<void> _fetchYogas() async {
+    setState(() {
+      _isLoadingYogas = true;
+    });
+    
+    try {
+      final yogas = await _yogaService.detectYogas(
+        date: _selectedDate,
+        latitude: _latitude,
+        longitude: _longitude,
+        timezone: _timezone,
+      );
+      
+      setState(() {
+        _detectedYogas = yogas;
+        _isLoadingYogas = false;
+      });
+    } catch (e) {
+      print("Error detecting yogas: $e");
+      setState(() {
+        _detectedYogas = [];
+        _isLoadingYogas = false;
       });
     }
   }
@@ -211,6 +247,8 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
           _buildInauspiciousTimings(),
           const SizedBox(height: 16),
           _buildAuspiciousTimings(),
+          const SizedBox(height: 16),
+          _buildYogasSection(),
         ],
         if (_errorMessage != null) _buildErrorCard(),
         const SizedBox(height: 40),
@@ -1698,5 +1736,214 @@ class _PanchangScreenState extends State<PanchangScreen> with SingleTickerProvid
       12: 'spirituality and liberation',
     };
     return houseNames[house] ?? 'life';
+  }
+  
+  /// Build the Special Yogas section
+  Widget _buildYogasSection() {
+    if (_isLoadingYogas) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AstroTheme.accentPurple.withOpacity(0.15),
+              AstroTheme.accentPurple.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AstroTheme.accentPurple.withOpacity(0.3)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AstroTheme.accentPurple),
+        ),
+      );
+    }
+    
+    final auspiciousYogas = _detectedYogas?.where((y) => y.isAuspicious).toList() ?? [];
+    final inauspiciousYogas = _detectedYogas?.where((y) => !y.isAuspicious).toList() ?? [];
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AstroTheme.accentPurple.withOpacity(0.15),
+            AstroTheme.accentPurple.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AstroTheme.accentPurple.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: AstroTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Special Yogas',
+                      style: AstroTheme.headingSmall.copyWith(color: AstroTheme.accentPurple),
+                    ),
+                    Text(
+                      'Vedic auspicious combinations',
+                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Display yogas or no yogas message
+          if (_detectedYogas == null || _detectedYogas!.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white.withOpacity(0.5), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No special yogas detected for this date',
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            // Auspicious yogas
+            if (auspiciousYogas.isNotEmpty) ...[
+              ...auspiciousYogas.take(3).map((yoga) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildYogaItem(yoga, true),
+              )),
+            ],
+            
+            // Inauspicious yogas
+            if (inauspiciousYogas.isNotEmpty) ...[
+              ...inauspiciousYogas.take(2).map((yoga) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildYogaItem(yoga, false),
+              )),
+            ],
+            
+            // Show count if there are more yogas
+            if (_detectedYogas!.length > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${_detectedYogas!.length - 5} more yogas',
+                  style: TextStyle(
+                    color: AstroTheme.accentPurple.withOpacity(0.7),
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+          ],
+          
+          const SizedBox(height: 16),
+          
+          // View All Yogas button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const YogaScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: const Text('VIEW ALL YOGAS'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AstroTheme.accentPurple.withOpacity(0.3),
+                foregroundColor: AstroTheme.accentPurple,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AstroTheme.accentPurple.withOpacity(0.5)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Build a single yoga item
+  Widget _buildYogaItem(YogaResult yoga, bool isAuspicious) {
+    final color = isAuspicious ? Colors.green : Colors.red;
+    final icon = isAuspicious ? Icons.check_circle : Icons.warning;
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  yoga.definition.name,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  yoga.definition.description.split('.').first,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
